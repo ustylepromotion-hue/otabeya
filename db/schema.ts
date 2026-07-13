@@ -32,3 +32,12 @@ export const comments = sqliteTable("comments", {
   body: text("body").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 }, (table) => [index("comments_room_id_idx").on(table.roomId)]);
+
+export const affiliateClicks = sqliteTable("affiliate_clicks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  roomRef: text("room_ref").notNull(),
+  productName: text("product_name").notNull(),
+  query: text("query").notNull(),
+  position: integer("position").notNull().default(1),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+}, (table) => [index("affiliate_clicks_room_ref_idx").on(table.roomRef)]);

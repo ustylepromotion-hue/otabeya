@@ -205,6 +205,8 @@ footer { background: #0b0b0b; color: white; padding: 70px 5vw 24px; }
 .affiliate-note { font-size: 7px; color: var(--muted); }
 .modal-actions { display: flex; gap: 9px; margin-top: 24px; }
 .modal-actions > button:not(.primary-action) { border: 1px solid var(--ink); background: transparent; padding: 0 20px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.share-card-action { width: 100%; min-height: 42px; margin-top: 8px; border: 0; background: var(--acid); color: var(--ink); font-size: 9px; font-weight: 900; cursor: pointer; }
+.share-card-action:hover { background: var(--ink); color: white; }
 .social-share-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
 .social-share-row button { min-height: 36px; border: 1px solid var(--line); background: transparent; font-size: 8px; font-weight: 800; cursor: pointer; }
 .social-share-row button:hover { border-color: var(--ink); background: white; }

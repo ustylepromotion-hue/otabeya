@@ -333,6 +333,100 @@ export default function Home() {
     window.open(target, "_blank", "noopener,noreferrer,width=720,height=680");
   };
 
+  const shareCard = async (room: Room) => {
+    notify("シェアカードを生成中…");
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const next = new Image();
+        next.onload = () => resolve(next);
+        next.onerror = reject;
+        next.src = room.image;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = 630;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas unavailable");
+
+      context.fillStyle = "#0b0b0b";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const targetRatio = 560 / 630;
+      const sourceRatio = image.width / image.height;
+      let sourceWidth = image.width;
+      let sourceHeight = image.height;
+      let sourceX = 0;
+      let sourceY = 0;
+      if (sourceRatio > targetRatio) {
+        sourceWidth = image.height * targetRatio;
+        sourceX = (image.width - sourceWidth) / 2;
+      } else {
+        sourceHeight = image.width / targetRatio;
+        sourceY = (image.height - sourceHeight) / 2;
+      }
+      context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 640, 0, 560, 630);
+      const shade = context.createLinearGradient(540, 0, 850, 0);
+      shade.addColorStop(0, "#0b0b0b");
+      shade.addColorStop(1, "rgba(11,11,11,0)");
+      context.fillStyle = shade;
+      context.fillRect(530, 0, 330, 630);
+
+      context.fillStyle = "#d7ff35";
+      context.fillRect(56, 52, 84, 7);
+      context.font = "900 34px Arial, sans-serif";
+      context.fillText("OTABASE", 56, 102);
+      context.font = "700 16px Arial, sans-serif";
+      context.fillStyle = "#a8a8a8";
+      context.fillText("THE ROOM SAYS EVERYTHING.", 56, 137);
+
+      const title = room.shareCopy || room.title;
+      context.fillStyle = "#ffffff";
+      context.font = "900 48px Arial, sans-serif";
+      const characters = [...title];
+      const lines: string[] = [];
+      let line = "";
+      for (const character of characters) {
+        const candidate = line + character;
+        if (context.measureText(candidate).width > 505 && line) {
+          lines.push(line);
+          line = character;
+          if (lines.length === 3) break;
+        } else line = candidate;
+      }
+      if (line && lines.length < 3) lines.push(line);
+      lines.forEach((value, index) => context.fillText(value, 56, 220 + index * 64));
+
+      context.fillStyle = "#d7ff35";
+      context.font = "900 108px Arial, sans-serif";
+      context.fillText(String(room.score), 56, 510);
+      context.font = "800 18px Arial, sans-serif";
+      context.fillText("/ 100  推し密度", 185, 505);
+      context.fillStyle = "#ffffff";
+      context.font = "700 18px Arial, sans-serif";
+      context.fillText(room.archetype || `${room.category}没入型`, 58, 551);
+      context.fillStyle = "#8a8a8a";
+      context.font = "600 14px Arial, sans-serif";
+      context.fillText(`${room.user}  #OTABASE`, 58, 588);
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png", 0.94));
+      if (!blob) throw new Error("image unavailable");
+      const file = new File([blob], `otabase-${room.id}.png`, { type: "image/png" });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        const { text, url } = shareDetails(room);
+        await navigator.share({ title: "OTABASE ROOM CARD", text, url, files: [file] });
+      } else {
+        const download = document.createElement("a");
+        download.href = URL.createObjectURL(blob);
+        download.download = file.name;
+        download.click();
+        window.setTimeout(() => URL.revokeObjectURL(download.href), 1000);
+        notify("シェアカードを保存しました");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      notify("シェアカードを生成できませんでした");
+    }
+  };
+
   return (
     <main>
       <header className="site-header">
@@ -497,12 +591,13 @@ export default function Home() {
               <div className="dna-row"><span><b>{selected.score}</b>推し密度</span><span><b>{selected.scores?.reproducibility ?? 88}</b>真似したさ</span><span><b>{selected.likes + (likes[selected.id] || 0)}</b>いいね</span></div>
               <h3>この部屋を再現する</h3>
               <div className="product-list">
-                {selected.products.map((product) => (
-                  <a key={`${product.name}-${product.query}`} href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(product.query)}&tag=otabase-22`} target="_blank" rel="noreferrer sponsored"><span>{product.name}<small>{product.price || product.reason}</small></span><b>Amazonで見る ↗</b></a>
+                {selected.products.map((product, index) => (
+                  <a key={`${product.name}-${product.query}`} href={`/api/out?room=${encodeURIComponent(selected.id)}&q=${encodeURIComponent(product.query)}&name=${encodeURIComponent(product.name)}&position=${index + 1}`} target="_blank" rel="noreferrer sponsored"><span>{product.name}<small>{product.price || product.reason}</small></span><b>Amazonで見る ↗</b></a>
                 ))}
               </div>
               <p className="affiliate-note">商品リンクにはアフィリエイト広告が含まれます。</p>
               <div className="modal-actions"><button className="primary-action" onClick={() => share(selected)}>この部屋をシェア <b>↗</b></button><button onClick={() => toggleLike(selected)}>♡ いいね</button></div>
+              <button className="share-card-action" onClick={() => shareCard(selected)}>実画像入りルームカードを共有・保存 ↗</button>
               <div className="social-share-row"><button onClick={() => shareTo("x", selected)}>Xでシェア</button><button onClick={() => shareTo("line", selected)}>LINE</button><button onClick={() => shareTo("copy", selected)}>リンクをコピー</button></div>
               <section className="comments-section">
                 <h3>ROOM TALK <span>{comments.length}</span></h3>
