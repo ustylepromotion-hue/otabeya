@@ -1,0 +1,401 @@
+"use client";
+
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+
+type Room = {
+  id: number;
+  title: string;
+  user: string;
+  category: string;
+  image: string;
+  likes: number;
+  views: string;
+  score: number;
+  tag: string;
+  description: string;
+  products: { name: string; price: string; query: string }[];
+};
+
+const rooms: Room[] = [
+  {
+    id: 1,
+    title: "仕事とゲームを、1.8畳に詰め込んだ。",
+    user: "@shiro_setup",
+    category: "デスク",
+    image: "/rooms/room-6.jpg",
+    likes: 1284,
+    views: "18.2K",
+    score: 92,
+    tag: "AI PICK",
+    description: "木目と白だけで整えた、PS5共存型ワークスペース。配線を見せないことに全振りしました。",
+    products: [
+      { name: "電動昇降デスク 120cm", price: "¥39,800〜", query: "電動昇降デスク 120cm 木目" },
+      { name: "モニターライト", price: "¥6,980〜", query: "モニターライト デスク" },
+      { name: "メッシュワークチェア", price: "¥29,800〜", query: "メッシュ ワークチェア 白" },
+    ],
+  },
+  {
+    id: 2,
+    title: "紫しか勝たん、深夜2時の没入基地。",
+    user: "@yoru_no_gamer",
+    category: "ゲーミング",
+    image: "/rooms/room-7.jpg",
+    likes: 2461,
+    views: "31.8K",
+    score: 97,
+    tag: "BUZZING",
+    description: "RGBは紫に固定。吸音材と間接照明で、配信の声も画も一段上に。",
+    products: [
+      { name: "RGBライトバー 2本組", price: "¥8,480〜", query: "RGB ライトバー ゲーミング" },
+      { name: "吸音パネル", price: "¥4,999〜", query: "吸音パネル 黒 デスク" },
+      { name: "75%メカニカルキーボード", price: "¥12,800〜", query: "75% メカニカルキーボード RGB" },
+    ],
+  },
+  {
+    id: 3,
+    title: "白PCに差し色オレンジ。自作勢の正解。",
+    user: "@kibako_pc",
+    category: "ゲーミング",
+    image: "/rooms/room-8.jpg",
+    likes: 891,
+    views: "12.4K",
+    score: 89,
+    tag: "NEW",
+    description: "白い自作PCとオレンジのデスクマット。機材は多くても、色数は増やさない。",
+    products: [
+      { name: "白色ミドルタワーケース", price: "¥18,900〜", query: "PCケース 白 ガラス ミドルタワー" },
+      { name: "大型デスクマット", price: "¥3,480〜", query: "デスクマット オレンジ 大型" },
+      { name: "モニターアーム", price: "¥9,980〜", query: "モニターアーム 白" },
+    ],
+  },
+  {
+    id: 4,
+    title: "レコードと真空管。音だけで夜を作る部屋。",
+    user: "@needle_drop",
+    category: "オーディオ",
+    image: "/rooms/room-9.jpg",
+    likes: 1742,
+    views: "22.1K",
+    score: 95,
+    tag: "EDITOR'S",
+    description: "ウォールナットの棚に、アナログだけを集めたリスニングコーナー。",
+    products: [
+      { name: "ベルトドライブ式ターンテーブル", price: "¥24,800〜", query: "ターンテーブル ベルトドライブ 木目" },
+      { name: "プリメインアンプ", price: "¥42,000〜", query: "プリメインアンプ レトロ" },
+      { name: "レコードスタンド", price: "¥2,200〜", query: "レコード ディスプレイ スタンド" },
+    ],
+  },
+  {
+    id: 5,
+    title: "好きなものだけ。創作オタクの昼の顔。",
+    user: "@rough_and_draw",
+    category: "クリエイター",
+    image: "/rooms/room-10.jpg",
+    likes: 664,
+    views: "8.9K",
+    score: 86,
+    tag: "NEW",
+    description: "壁のアートと植物、液タブ。散らかって見えない“作業中”を目指しました。",
+    products: [
+      { name: "デスクランプ クランプ式", price: "¥5,980〜", query: "デスクランプ クランプ 黒" },
+      { name: "壁付けシェルフ", price: "¥4,400〜", query: "壁付けシェルフ 木製" },
+      { name: "液晶ペンタブレット", price: "¥39,800〜", query: "液晶ペンタブレット" },
+    ],
+  },
+  {
+    id: 6,
+    title: "世界大会を見ながら育てた配信部屋。",
+    user: "@frag_room",
+    category: "ゲーミング",
+    image: "/rooms/hero.jpg",
+    likes: 3188,
+    views: "46.7K",
+    score: 99,
+    tag: "HALL OF FAME",
+    description: "デュアルモニターと撮影機材を常設。推しチームの歴史ごと壁に飾っています。",
+    products: [
+      { name: "27インチ ゲーミングモニター", price: "¥32,800〜", query: "27インチ ゲーミングモニター 165Hz" },
+      { name: "USBコンデンサーマイク", price: "¥13,800〜", query: "USB コンデンサーマイク 配信" },
+      { name: "RGBミドルタワーPCケース", price: "¥16,500〜", query: "RGB PCケース ミドルタワー" },
+    ],
+  },
+];
+
+const categories = ["すべて", "ゲーミング", "デスク", "オーディオ", "クリエイター"];
+
+export default function Home() {
+  const [category, setCategory] = useState("すべて");
+  const [sort, setSort] = useState<"人気" | "新着">("人気");
+  const [likes, setLikes] = useState<Record<number, number>>({});
+  const [selected, setSelected] = useState<Room | null>(null);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [submitState, setSubmitState] = useState<"idle" | "analyzing" | "done">("idle");
+  const [toast, setToast] = useState("");
+
+  const filtered = useMemo(() => {
+    const list = category === "すべて" ? [...rooms] : rooms.filter((room) => room.category === category);
+    if (sort === "人気") list.sort((a, b) => b.likes - a.likes);
+    return list;
+  }, [category, sort]);
+
+  const notify = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2400);
+  };
+
+  const toggleLike = (id: number) => {
+    setLikes((current) => ({ ...current, [id]: current[id] === undefined ? 1 : current[id] ? 0 : 1 }));
+  };
+
+  const onImage = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setPreview(URL.createObjectURL(file));
+  };
+
+  const submitRoom = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitState("analyzing");
+    const form = event.currentTarget;
+    const started = Date.now();
+    try {
+      const response = await fetch("/api/posts", { method: "POST", body: new FormData(form) });
+      if (!response.ok) throw new Error("post failed");
+      const wait = Math.max(0, 1500 - (Date.now() - started));
+      window.setTimeout(() => setSubmitState("done"), wait);
+    } catch {
+      setSubmitState("idle");
+      notify("投稿の保存に失敗しました。もう一度お試しください");
+    }
+  };
+
+  const share = async (room?: Room) => {
+    const text = room ? `「${room.title}」推し密度 ${room.score}%｜OTABASE` : "あなたの“好き”は、部屋に出る。｜OTABASE";
+    if (navigator.share) {
+      await navigator.share({ title: "OTABASE", text, url: window.location.href });
+    } else {
+      await navigator.clipboard.writeText(`${text} ${window.location.href}`);
+      notify("シェア文をコピーしました");
+    }
+  };
+
+  return (
+    <main>
+      <header className="site-header">
+        <a className="brand" href="#top" aria-label="OTABASE ホーム">
+          OTA<span>BASE</span><sup>β</sup>
+        </a>
+        <nav className="desktop-nav" aria-label="メインナビゲーション">
+          <a href="#rooms">ROOMS</a>
+          <button onClick={() => setAiOpen(true)}>AI SCAN</button>
+          <a href="#ranking">RANKING</a>
+          <a href="#about">ABOUT</a>
+        </nav>
+        <button className="post-button" onClick={() => setSubmitOpen(true)}>
+          <span>＋</span> 部屋を投稿
+        </button>
+      </header>
+
+      <section id="top" className="hero-section">
+        <div className="hero-copy">
+          <p className="eyebrow"><span /> THE ROOM SAYS EVERYTHING.</p>
+          <h1>あなたの<span>“好き”</span>は、<br />部屋に出る。</h1>
+          <p className="hero-lead">ゲーム、アニメ、音楽、ガジェット。<br />偏愛を詰め込んだ部屋を見せ合う、オタク部屋投稿コミュニティ。</p>
+          <div className="hero-actions">
+            <button className="primary-action" onClick={() => setSubmitOpen(true)}>自慢の部屋を投稿する <b>↗</b></button>
+            <button className="text-action" onClick={() => document.querySelector("#rooms")?.scrollIntoView({ behavior: "smooth" })}>みんなの部屋を見る <span>↓</span></button>
+          </div>
+          <div className="hero-stats">
+            <div><strong>12,840</strong><small>ROOMS POSTED</small></div>
+            <div><strong>486K</strong><small>MONTHLY LIKES</small></div>
+            <div><strong>94%</strong><small>AI SCAN RATE</small></div>
+          </div>
+        </div>
+        <button className="hero-visual" onClick={() => setSelected(rooms[5])} aria-label="殿堂入りの部屋を見る">
+          <img src="/rooms/hero.jpg" alt="デュアルモニターとゲーミングPCのある部屋" />
+          <span className="vertical-label">ROOM OF THE WEEK — 047</span>
+          <span className="score-stamp"><b>AI</b><strong>99</strong><small>PREFERENCE<br />DENSITY</small></span>
+          <span className="hero-caption"><em>HALL OF FAME</em>世界大会を見ながら育てた配信部屋。<b>↗</b></span>
+        </button>
+      </section>
+
+      <section className="ticker" aria-label="人気タグ">
+        <div>RGBは正義 <b>✦</b> 4.5畳の宇宙船 <b>✦</b> 推し棚が本体 <b>✦</b> 配線消失バグ <b>✦</b> 深夜の要塞 <b>✦</b> デスク沼からの便り <b>✦</b></div>
+      </section>
+
+      <section id="rooms" className="rooms-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow"><span /> DISCOVER ROOMS</p>
+            <h2>偏愛の数だけ、<br />部屋がある。</h2>
+          </div>
+          <p>AIが写真から“推し密度”を解析。<br />気になる部屋は、使っているモノまで全部わかる。</p>
+        </div>
+
+        <div className="filter-row">
+          <div className="category-tabs" role="tablist" aria-label="部屋カテゴリ">
+            {categories.map((item) => (
+              <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>
+            ))}
+          </div>
+          <div className="sort-toggle">
+            {(["人気", "新着"] as const).map((item) => (
+              <button key={item} className={sort === item ? "active" : ""} onClick={() => setSort(item)}>{item}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="room-grid">
+          {filtered.map((room, index) => (
+            <article className={`room-card card-${index % 3}`} key={room.id}>
+              <button className="image-button" onClick={() => setSelected(room)}>
+                <img src={room.image} alt={room.title} />
+                <span className="card-tag">{room.tag}</span>
+                <span className="card-score"><b>{room.score}</b><small>推し密度</small></span>
+                <span className="view-room">ROOM TOUR ↗</span>
+              </button>
+              <div className="card-meta"><span>{room.category}</span><span>{room.views} VIEWS</span></div>
+              <button className="card-title" onClick={() => setSelected(room)}>{room.title}</button>
+              <div className="card-footer">
+                <span>{room.user}</span>
+                <button className={likes[room.id] ? "liked" : ""} onClick={() => toggleLike(room.id)} aria-label="いいね">♡ {room.likes + (likes[room.id] || 0)}</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="ai-section" id="about">
+        <div className="ai-copy">
+          <p className="eyebrow light"><span /> POWERED BY ROOM INTELLIGENCE</p>
+          <h2>ただ載せるだけじゃ、<br />もったいない。</h2>
+          <p>OTABASE AIが写真を読み解き、あなたの部屋を“語れるコンテンツ”に変換します。</p>
+          <button onClick={() => setAiOpen(true)}>AI SCANを試す <b>↗</b></button>
+        </div>
+        <div className="ai-console">
+          <div className="console-top"><span>OTABASE / ROOM INTELLIGENCE</span><span>ANALYSIS COMPLETE ●</span></div>
+          <div className="scan-layout">
+            <div className="scan-image"><img src="/rooms/room-8.jpg" alt="AI解析中のPCデスク" /><i className="scan-line" /><i className="focus-box one" /><i className="focus-box two" /></div>
+            <div className="scan-data">
+              <span>ROOM DNA</span>
+              <strong>推し密度 <b>89%</b></strong>
+              <div className="bars">
+                <label>統一感 <i style={{ width: "92%" }} /></label>
+                <label>沼の深さ <i style={{ width: "86%" }} /></label>
+                <label>生活感ゼロ <i style={{ width: "74%" }} /></label>
+                <label>真似したさ <i style={{ width: "96%" }} /></label>
+              </div>
+              <p>「白×オレンジ」の色設計に迷いがない。自作PC勢の美学と、配線管理への執念を検出しました。</p>
+            </div>
+          </div>
+          <div className="console-footer"><span>Detected: PC CASE / MONITOR ARM / DESK MAT / HEADSET</span><span>4 ITEMS MATCHED</span></div>
+        </div>
+      </section>
+
+      <section className="viral-section">
+        <div className="viral-card">
+          <span className="viral-kicker">AI GENERATES YOUR ROOM CARD</span>
+          <strong>わたしの部屋、<br />推し密度 <b>97%</b> でした。</strong>
+          <div className="viral-tags">#紫しか勝たん　#深夜の没入基地　#OTABASE</div>
+          <div className="viral-score"><small>ROOM DNA</small><em>97</em><span>/100</span></div>
+        </div>
+        <div className="viral-copy">
+          <p className="eyebrow"><span /> SHARE &amp; GO VIRAL</p>
+          <h2>診断結果まで、<br />シェアしたくなる。</h2>
+          <p>AIがあなた専用のルームカードと紹介文を自動生成。X・Instagram・LINEへワンタップで。</p>
+          <button className="primary-action" onClick={() => setShareOpen(true)}>シェアカードを作る <b>↗</b></button>
+        </div>
+      </section>
+
+      <section id="ranking" className="ranking-section">
+        <div className="ranking-head"><div><p className="eyebrow light"><span /> OTA LEAGUE</p><h2>今週、最も刺さった部屋。</h2></div><span>WEEK 29 / 2026</span></div>
+        {rooms.slice().sort((a, b) => b.likes - a.likes).slice(0, 3).map((room, index) => (
+          <button className="ranking-row" key={room.id} onClick={() => setSelected(room)}>
+            <b>0{index + 1}</b><img src={room.image} alt="" /><span><small>{room.category}</small><strong>{room.title}</strong><em>{room.user}</em></span><span className="rank-score">♡ {room.likes}<i>{room.score}<small>AI</small></i></span><span className="rank-arrow">↗</span>
+          </button>
+        ))}
+      </section>
+
+      <section className="cta-section">
+        <p className="eyebrow"><span /> YOUR ROOM DESERVES THE SPOTLIGHT</p>
+        <h2>見せてくれ。<br />あなたの<span>“好き”</span>の全部を。</h2>
+        <button className="primary-action" onClick={() => setSubmitOpen(true)}>今すぐ部屋を投稿する <b>↗</b></button>
+        <small>投稿無料・写真1枚から / AIが紹介文をサポート</small>
+      </section>
+
+      <footer>
+        <div className="footer-brand"><a className="brand" href="#top">OTA<span>BASE</span><sup>β</sup></a><p>偏愛を、部屋から世界へ。</p></div>
+        <div className="footer-links"><div><b>EXPLORE</b><a href="#rooms">新着の部屋</a><a href="#ranking">ランキング</a><button onClick={() => setAiOpen(true)}>AI SCAN</button></div><div><b>GUIDE</b><a href="#about">OTABASEとは</a><button onClick={() => setSubmitOpen(true)}>投稿ガイド</button><a href="#top">コミュニティルール</a></div><div><b>FOLLOW</b><button onClick={() => share()}>X / TWITTER</button><button onClick={() => share()}>INSTAGRAM</button><button onClick={() => share()}>TIKTOK</button></div></div>
+        <div className="footer-bottom"><span>© 2026 OTABASE</span><span>PRIVACY　 TERMS　 CONTACT</span><span>MADE FOR EVERY OBSESSION.</span></div>
+      </footer>
+
+      {selected && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setSelected(null)}>
+          <section className="room-modal" role="dialog" aria-modal="true" aria-label={selected.title}>
+            <button className="modal-close" onClick={() => setSelected(null)}>CLOSE ×</button>
+            <div className="modal-image"><img src={selected.image} alt={selected.title} /><span>AI SCORE <b>{selected.score}</b></span></div>
+            <div className="modal-content">
+              <p className="eyebrow"><span /> {selected.category} / {selected.user}</p>
+              <h2>{selected.title}</h2>
+              <p>{selected.description}</p>
+              <div className="dna-row"><span><b>{selected.score}</b>推し密度</span><span><b>4.8</b>真似したさ</span><span><b>{selected.likes}</b>いいね</span></div>
+              <h3>この部屋を再現する</h3>
+              <div className="product-list">
+                {selected.products.map((product) => (
+                  <a key={product.name} href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(product.query)}&tag=otabase-22`} target="_blank" rel="noreferrer sponsored"><span>{product.name}<small>{product.price}</small></span><b>Amazonで見る ↗</b></a>
+                ))}
+              </div>
+              <p className="affiliate-note">商品リンクにはアフィリエイト広告が含まれます。</p>
+              <div className="modal-actions"><button className="primary-action" onClick={() => share(selected)}>この部屋をシェア <b>↗</b></button><button onClick={() => toggleLike(selected.id)}>♡ いいね</button></div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {submitOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setSubmitOpen(false)}>
+          <section className="submit-modal" role="dialog" aria-modal="true" aria-label="部屋を投稿">
+            <button className="modal-close" onClick={() => setSubmitOpen(false)}>CLOSE ×</button>
+            {submitState === "done" ? (
+              <div className="submit-complete"><span>AI SCAN COMPLETE</span><strong>推し密度<br /><b>94%</b></strong><h2>その部屋、かなり刺さります。</h2><p>紹介文とシェアカードの下書きを作成しました。公開後すぐに共有できます。</p><button className="primary-action" onClick={() => { setSubmitOpen(false); setSubmitState("idle"); setPreview(null); notify("投稿を受け付けました。公開準備中です"); }}>投稿を公開する ↗</button></div>
+            ) : (
+              <form onSubmit={submitRoom}>
+                <p className="eyebrow"><span /> POST YOUR ROOM</p><h2>“好き”の全部を、<br />1枚から。</h2>
+                <label className={`upload-zone ${preview ? "has-preview" : ""}`}>
+                  {preview ? <img src={preview} alt="投稿写真のプレビュー" /> : <><b>＋</b><strong>部屋の写真を選ぶ</strong><small>JPG / PNG / WEBP・最大10MB</small></>}
+                  <input type="file" name="image" accept="image/jpeg,image/png,image/webp" required onChange={onImage} />
+                </label>
+                <div className="form-grid"><label>タイトル<input name="title" required placeholder="例：4.5畳に作った深夜の要塞" /></label><label>ユーザー名<input name="handle" required placeholder="@your_name" /></label></div>
+                <label>カテゴリ<select name="category" defaultValue="ゲーミング">{categories.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label>こだわりポイント<textarea name="description" required placeholder="この部屋でいちばん見てほしいところは？" /></label>
+                <label>使っているアイテム（任意）<input name="items" placeholder="デスク、ライト、チェアなど" /></label>
+                <button className="primary-action submit-action" disabled={submitState === "analyzing"}>{submitState === "analyzing" ? "AIが部屋を解析中…" : "AI SCANして投稿する ↗"}</button>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
+
+      {aiOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setAiOpen(false)}>
+          <section className="simple-modal ai-demo" role="dialog" aria-modal="true" aria-label="AI SCANデモ">
+            <button className="modal-close" onClick={() => setAiOpen(false)}>CLOSE ×</button>
+            <p className="eyebrow light"><span /> ROOM INTELLIGENCE</p><h2>写真1枚から、<br />部屋の偏愛を言語化。</h2><div className="demo-score"><span>推し密度</span><b>94</b><em>/100</em></div><p>色設計、アイテム、配置、生活感を横断して分析。投稿タイトル、紹介文、タグ、シェアカード、買い物リストの候補まで自動生成します。</p><button className="primary-action" onClick={() => { setAiOpen(false); setSubmitOpen(true); }}>自分の部屋をスキャン ↗</button>
+          </section>
+        </div>
+      )}
+
+      {shareOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setShareOpen(false)}>
+          <section className="simple-modal share-modal" role="dialog" aria-modal="true" aria-label="シェアカード作成">
+            <button className="modal-close" onClick={() => setShareOpen(false)}>CLOSE ×</button><p className="eyebrow light"><span /> VIRAL CARD GENERATOR</p><h2>あなたの部屋にも、<br />名前をつけよう。</h2><p>部屋を投稿すると、AIが“推し密度”とキャッチコピーを診断。SNSに最適なカードを自動生成します。</p><button className="primary-action" onClick={() => { setShareOpen(false); setSubmitOpen(true); }}>写真を選んで作る ↗</button><button className="ghost-action" onClick={() => share()}>OTABASEを友だちにシェア</button>
+          </section>
+        </div>
+      )}
+
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </main>
+  );
+}
