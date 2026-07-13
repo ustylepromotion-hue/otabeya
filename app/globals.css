@@ -97,6 +97,8 @@ main { overflow: hidden; }
 .card-footer { border-top: 1px solid var(--line); padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: var(--muted); }
 .card-footer button { border: 0; background: none; cursor: pointer; font-size: 11px; }
 .card-footer button.liked { color: #e43c42; font-weight: 800; }
+.card-reactions { display: flex; align-items: center; gap: 12px; }
+.card-reactions small { font-size: 8px; letter-spacing: .08em; }
 
 .ai-section { background: #0c0c0c; color: white; padding: 100px 5vw; display: grid; grid-template-columns: .7fr 1.3fr; gap: 7vw; align-items: center; }
 .eyebrow.light { color: #b8b8b8; }
@@ -186,6 +188,9 @@ footer { background: #0b0b0b; color: white; padding: 70px 5vw 24px; }
 .modal-content { padding: 62px 44px 40px; }
 .modal-content h2 { font-size: clamp(32px, 4vw, 54px); line-height: 1.15; letter-spacing: -.06em; margin: 0 0 22px; }
 .modal-content > p:not(.eyebrow):not(.affiliate-note) { font-size: 13px; color: var(--muted); line-height: 1.9; }
+.room-archetype { margin: 18px 0 8px !important; color: var(--ink) !important; font: 9px var(--font-geist-mono); letter-spacing: .12em; }
+.room-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.room-tags span { border: 1px solid var(--line); padding: 5px 8px; font-size: 8px; }
 .dna-row { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 28px 0; }
 .dna-row span { padding: 17px 10px; font-size: 8px; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
 .dna-row span:last-child { border: 0; }
@@ -200,6 +205,22 @@ footer { background: #0b0b0b; color: white; padding: 70px 5vw 24px; }
 .affiliate-note { font-size: 7px; color: var(--muted); }
 .modal-actions { display: flex; gap: 9px; margin-top: 24px; }
 .modal-actions > button:not(.primary-action) { border: 1px solid var(--ink); background: transparent; padding: 0 20px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.social-share-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+.social-share-row button { min-height: 36px; border: 1px solid var(--line); background: transparent; font-size: 8px; font-weight: 800; cursor: pointer; }
+.social-share-row button:hover { border-color: var(--ink); background: white; }
+.comments-section { border-top: 1px solid var(--ink); margin-top: 34px; padding-top: 19px; }
+.comments-section > h3 { display: flex; justify-content: space-between; }
+.comments-section > h3 span { color: var(--muted); }
+.comment-list { max-height: 230px; overflow-y: auto; border-top: 1px solid var(--line); }
+.comment-list article { border-bottom: 1px solid var(--line); padding: 13px 2px; }
+.comment-list article b { font-size: 9px; }
+.comment-list article p, .comment-list > p, .comment-preview-note { margin: 5px 0 0; font-size: 10px !important; line-height: 1.7 !important; color: var(--muted); }
+.comment-form { display: grid; grid-template-columns: 120px 1fr auto; gap: 7px; margin-top: 12px; align-items: stretch; }
+.comment-form input, .comment-form textarea { border: 1px solid var(--line); background: white; border-radius: 0; padding: 10px; font-size: 9px; min-width: 0; outline: 0; }
+.comment-form textarea { min-height: 54px; resize: vertical; }
+.comment-form input:focus, .comment-form textarea:focus { border-color: var(--ink); }
+.comment-form button { border: 0; background: var(--ink); color: white; padding: 0 12px; font-size: 9px; font-weight: 800; cursor: pointer; }
+.comment-form button:hover { background: var(--acid); color: var(--ink); }
 
 .submit-modal { width: min(780px, 94vw); max-height: 92vh; overflow: auto; background: var(--paper); position: relative; padding: 52px clamp(24px, 5vw, 70px); }
 .submit-modal h2 { font-size: clamp(37px, 5vw, 58px); letter-spacing: -.065em; line-height: 1.1; margin: 0 0 27px; }
@@ -224,6 +245,7 @@ footer { background: #0b0b0b; color: white; padding: 70px 5vw 24px; }
 .submit-complete > strong b { font-size: 52px; letter-spacing: -.08em; }
 .submit-complete h2 { margin-bottom: 12px; }
 .submit-complete p { max-width: 440px; font-size: 12px; color: var(--muted); line-height: 1.8; }
+.scan-mode-note { max-width: 430px; margin: 0 0 18px; color: var(--muted); font-size: 8px; line-height: 1.7; }
 
 .simple-modal { width: min(620px, 94vw); background: #111; color: white; padding: 70px; position: relative; text-align: left; }
 .simple-modal .modal-close { color: white; }
@@ -304,6 +326,8 @@ footer { background: #0b0b0b; color: white; padding: 70px 5vw 24px; }
   .modal-content { padding: 48px 20px 30px; }
   .modal-actions { flex-direction: column; }
   .modal-actions > button:not(.primary-action) { min-height: 48px; }
+  .comment-form { grid-template-columns: 1fr; }
+  .comment-form button { min-height: 46px; }
   .form-grid { grid-template-columns: 1fr; }
   .submit-modal { padding: 50px 20px 30px; }
   .simple-modal { padding: 60px 24px 32px; }

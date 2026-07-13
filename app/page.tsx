@@ -1,9 +1,10 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Room = {
-  id: number;
+  id: string;
+  remoteId?: number;
   title: string;
   user: string;
   category: string;
@@ -13,12 +14,64 @@ type Room = {
   score: number;
   tag: string;
   description: string;
-  products: { name: string; price: string; query: string }[];
+  shareCopy?: string;
+  archetype?: string;
+  tags?: string[];
+  scores?: { unity?: number; obsession?: number; livedIn?: number; reproducibility?: number };
+  commentCount?: number;
+  llm?: boolean;
+  products: { name: string; price?: string; query: string; reason?: string }[];
 };
+
+type ApiRoom = {
+  id: number;
+  title: string;
+  handle: string;
+  category: string;
+  description: string;
+  image: string;
+  likes: number;
+  commentCount: number;
+  analysis: {
+    score: number;
+    caption: string;
+    shareCopy: string;
+    archetype: string;
+    tags: string[];
+    scores: { unity?: number; obsession?: number; livedIn?: number; reproducibility?: number };
+    products: { name: string; query: string; reason: string }[];
+    llm: boolean;
+  };
+};
+
+type RoomComment = { id: number; handle: string; body: string; createdAt: string };
+
+function fromApi(room: ApiRoom): Room {
+  return {
+    id: `db-${room.id}`,
+    remoteId: room.id,
+    title: room.title,
+    user: room.handle,
+    category: room.category,
+    image: room.image,
+    likes: room.likes,
+    views: "NEW",
+    score: room.analysis.score,
+    tag: "COMMUNITY",
+    description: room.analysis.caption || room.description,
+    shareCopy: room.analysis.shareCopy,
+    archetype: room.analysis.archetype,
+    tags: room.analysis.tags,
+    scores: room.analysis.scores,
+    commentCount: room.commentCount,
+    llm: room.analysis.llm,
+    products: room.analysis.products,
+  };
+}
 
 const rooms: Room[] = [
   {
-    id: 1,
+    id: "sample-1",
     title: "仕事とゲームを、1.8畳に詰め込んだ。",
     user: "@shiro_setup",
     category: "デスク",
@@ -35,7 +88,7 @@ const rooms: Room[] = [
     ],
   },
   {
-    id: 2,
+    id: "sample-2",
     title: "紫しか勝たん、深夜2時の没入基地。",
     user: "@yoru_no_gamer",
     category: "ゲーミング",
@@ -52,7 +105,7 @@ const rooms: Room[] = [
     ],
   },
   {
-    id: 3,
+    id: "sample-3",
     title: "白PCに差し色オレンジ。自作勢の正解。",
     user: "@kibako_pc",
     category: "ゲーミング",
@@ -69,7 +122,7 @@ const rooms: Room[] = [
     ],
   },
   {
-    id: 4,
+    id: "sample-4",
     title: "レコードと真空管。音だけで夜を作る部屋。",
     user: "@needle_drop",
     category: "オーディオ",
@@ -86,7 +139,7 @@ const rooms: Room[] = [
     ],
   },
   {
-    id: 5,
+    id: "sample-5",
     title: "好きなものだけ。創作オタクの昼の顔。",
     user: "@rough_and_draw",
     category: "クリエイター",
@@ -103,7 +156,7 @@ const rooms: Room[] = [
     ],
   },
   {
-    id: 6,
+    id: "sample-6",
     title: "世界大会を見ながら育てた配信部屋。",
     user: "@frag_room",
     category: "ゲーミング",
@@ -126,28 +179,78 @@ const categories = ["すべて", "ゲーミング", "デスク", "オーディ�
 export default function Home() {
   const [category, setCategory] = useState("すべて");
   const [sort, setSort] = useState<"人気" | "新着">("人気");
-  const [likes, setLikes] = useState<Record<number, number>>({});
+  const [likes, setLikes] = useState<Record<string, number>>({});
+  const [remoteRooms, setRemoteRooms] = useState<Room[]>([]);
+  const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [selected, setSelected] = useState<Room | null>(null);
+  const [comments, setComments] = useState<RoomComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<"idle" | "analyzing" | "done">("idle");
+  const [submittedRoom, setSubmittedRoom] = useState<Room | null>(null);
   const [toast, setToast] = useState("");
+  const deepLinkHandled = useRef(false);
+
+  const allRooms = useMemo(() => [...remoteRooms, ...rooms], [remoteRooms]);
 
   const filtered = useMemo(() => {
-    const list = category === "すべて" ? [...rooms] : rooms.filter((room) => room.category === category);
+    const list = category === "すべて" ? [...allRooms] : allRooms.filter((room) => room.category === category);
     if (sort === "人気") list.sort((a, b) => b.likes - a.likes);
     return list;
-  }, [category, sort]);
+  }, [allRooms, category, sort]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/posts").then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json() as { rooms?: ApiRoom[] };
+      if (active) setRemoteRooms((payload.rooms ?? []).map(fromApi));
+    }).catch(() => undefined).finally(() => active && setRoomsLoaded(true));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!roomsLoaded || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
+    const roomId = new URLSearchParams(window.location.search).get("room");
+    const room = allRooms.find((item) => item.id === roomId);
+    if (room) setSelected(room);
+  }, [allRooms, roomsLoaded]);
+
+  useEffect(() => {
+    if (!selected?.remoteId) {
+      setComments([]);
+      return;
+    }
+    let active = true;
+    setCommentsLoading(true);
+    fetch(`/api/posts/${selected.remoteId}/comments`).then(async (response) => {
+      if (!response.ok) throw new Error("comments");
+      const payload = await response.json() as { comments?: RoomComment[] };
+      if (active) setComments(payload.comments ?? []);
+    }).catch(() => active && setComments([])).finally(() => active && setCommentsLoading(false));
+    return () => { active = false; };
+  }, [selected?.remoteId]);
 
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
   };
 
-  const toggleLike = (id: number) => {
-    setLikes((current) => ({ ...current, [id]: current[id] === undefined ? 1 : current[id] ? 0 : 1 }));
+  const toggleLike = async (room: Room) => {
+    if (likes[room.id]) return;
+    setLikes((current) => ({ ...current, [room.id]: 1 }));
+    if (!room.remoteId) return;
+    try {
+      const response = await fetch(`/api/posts/${room.remoteId}/like`, { method: "POST" });
+      if (!response.ok) throw new Error("like");
+    } catch {
+      setLikes((current) => ({ ...current, [room.id]: 0 }));
+      notify("いいねを保存できませんでした");
+    }
   };
 
   const onImage = (event: ChangeEvent<HTMLInputElement>) => {
@@ -162,23 +265,72 @@ export default function Home() {
     const started = Date.now();
     try {
       const response = await fetch("/api/posts", { method: "POST", body: new FormData(form) });
-      if (!response.ok) throw new Error("post failed");
+      const payload = await response.json() as { room?: ApiRoom; error?: string };
+      if (!response.ok || !payload.room) throw new Error(payload.error || "post failed");
+      const room = fromApi(payload.room);
+      setSubmittedRoom(room);
+      setRemoteRooms((current) => [room, ...current.filter((item) => item.id !== room.id)]);
       const wait = Math.max(0, 1500 - (Date.now() - started));
       window.setTimeout(() => setSubmitState("done"), wait);
-    } catch {
+    } catch (error) {
       setSubmitState("idle");
-      notify("投稿の保存に失敗しました。もう一度お試しください");
+      notify(error instanceof Error ? error.message : "投稿の保存に失敗しました");
     }
   };
 
-  const share = async (room?: Room) => {
-    const text = room ? `「${room.title}」推し密度 ${room.score}%｜OTABASE` : "あなたの“好き”は、部屋に出る。｜OTABASE";
-    if (navigator.share) {
-      await navigator.share({ title: "OTABASE", text, url: window.location.href });
-    } else {
-      await navigator.clipboard.writeText(`${text} ${window.location.href}`);
-      notify("シェア文をコピーしました");
+  const submitComment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected?.remoteId) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    try {
+      const response = await fetch(`/api/posts/${selected.remoteId}/comments`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle: data.get("handle"), body: data.get("body") }),
+      });
+      const payload = await response.json() as { comment?: RoomComment; error?: string };
+      if (!response.ok || !payload.comment) throw new Error(payload.error || "コメントを投稿できませんでした");
+      setComments((current) => [...current, payload.comment!]);
+      setRemoteRooms((current) => current.map((room) => room.id === selected.id ? { ...room, commentCount: (room.commentCount ?? 0) + 1 } : room));
+      form.reset();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "コメントを投稿できませんでした");
     }
+  };
+
+  const shareDetails = (room?: Room) => {
+    const text = room ? `${room.shareCopy || `「${room.title}」推し密度 ${room.score}%`}｜OTABASE` : "あなたの“好き”は、部屋に出る。｜OTABASE";
+    const url = new URL(window.location.href);
+    if (room) url.searchParams.set("room", room.id);
+    return { text, url: url.toString() };
+  };
+
+  const share = async (room?: Room) => {
+    const details = shareDetails(room);
+    try {
+      if (navigator.share) await navigator.share({ title: "OTABASE", text: details.text, url: details.url });
+      else {
+        await navigator.clipboard.writeText(`${details.text} ${details.url}`);
+        notify("シェア文をコピーしました");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      notify("シェアを開けませんでした");
+    }
+  };
+
+  const shareTo = async (network: "x" | "line" | "copy", room: Room) => {
+    const { text, url } = shareDetails(room);
+    if (network === "copy") {
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      notify("シェア文とリンクをコピーしました");
+      return;
+    }
+    const target = network === "x"
+      ? `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
+      : `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    window.open(target, "_blank", "noopener,noreferrer,width=720,height=680");
   };
 
   return (
@@ -260,7 +412,7 @@ export default function Home() {
               <button className="card-title" onClick={() => setSelected(room)}>{room.title}</button>
               <div className="card-footer">
                 <span>{room.user}</span>
-                <button className={likes[room.id] ? "liked" : ""} onClick={() => toggleLike(room.id)} aria-label="いいね">♡ {room.likes + (likes[room.id] || 0)}</button>
+                <span className="card-reactions"><small>COM {room.commentCount ?? 0}</small><button className={likes[room.id] ? "liked" : ""} onClick={() => toggleLike(room)} aria-label="いいね">♡ {room.likes + (likes[room.id] || 0)}</button></span>
               </div>
             </article>
           ))}
@@ -311,7 +463,7 @@ export default function Home() {
 
       <section id="ranking" className="ranking-section">
         <div className="ranking-head"><div><p className="eyebrow light"><span /> OTA LEAGUE</p><h2>今週、最も刺さった部屋。</h2></div><span>WEEK 29 / 2026</span></div>
-        {rooms.slice().sort((a, b) => b.likes - a.likes).slice(0, 3).map((room, index) => (
+        {allRooms.slice().sort((a, b) => b.likes - a.likes).slice(0, 3).map((room, index) => (
           <button className="ranking-row" key={room.id} onClick={() => setSelected(room)}>
             <b>0{index + 1}</b><img src={room.image} alt="" /><span><small>{room.category}</small><strong>{room.title}</strong><em>{room.user}</em></span><span className="rank-score">♡ {room.likes}<i>{room.score}<small>AI</small></i></span><span className="rank-arrow">↗</span>
           </button>
@@ -340,15 +492,27 @@ export default function Home() {
               <p className="eyebrow"><span /> {selected.category} / {selected.user}</p>
               <h2>{selected.title}</h2>
               <p>{selected.description}</p>
-              <div className="dna-row"><span><b>{selected.score}</b>推し密度</span><span><b>4.8</b>真似したさ</span><span><b>{selected.likes}</b>いいね</span></div>
+              {selected.archetype && <p className="room-archetype">ROOM TYPE — {selected.archetype}</p>}
+              {selected.tags && <div className="room-tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+              <div className="dna-row"><span><b>{selected.score}</b>推し密度</span><span><b>{selected.scores?.reproducibility ?? 88}</b>真似したさ</span><span><b>{selected.likes + (likes[selected.id] || 0)}</b>いいね</span></div>
               <h3>この部屋を再現する</h3>
               <div className="product-list">
                 {selected.products.map((product) => (
-                  <a key={product.name} href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(product.query)}&tag=otabase-22`} target="_blank" rel="noreferrer sponsored"><span>{product.name}<small>{product.price}</small></span><b>Amazonで見る ↗</b></a>
+                  <a key={`${product.name}-${product.query}`} href={`https://www.amazon.co.jp/s?k=${encodeURIComponent(product.query)}&tag=otabase-22`} target="_blank" rel="noreferrer sponsored"><span>{product.name}<small>{product.price || product.reason}</small></span><b>Amazonで見る ↗</b></a>
                 ))}
               </div>
               <p className="affiliate-note">商品リンクにはアフィリエイト広告が含まれます。</p>
-              <div className="modal-actions"><button className="primary-action" onClick={() => share(selected)}>この部屋をシェア <b>↗</b></button><button onClick={() => toggleLike(selected.id)}>♡ いいね</button></div>
+              <div className="modal-actions"><button className="primary-action" onClick={() => share(selected)}>この部屋をシェア <b>↗</b></button><button onClick={() => toggleLike(selected)}>♡ いいね</button></div>
+              <div className="social-share-row"><button onClick={() => shareTo("x", selected)}>Xでシェア</button><button onClick={() => shareTo("line", selected)}>LINE</button><button onClick={() => shareTo("copy", selected)}>リンクをコピー</button></div>
+              <section className="comments-section">
+                <h3>ROOM TALK <span>{comments.length}</span></h3>
+                {selected.remoteId ? <>
+                  <div className="comment-list">
+                    {commentsLoading ? <p>コメントを読み込み中…</p> : comments.length ? comments.map((comment) => <article key={comment.id}><b>{comment.handle}</b><p>{comment.body}</p></article>) : <p>最初のひとことを残してみよう。</p>}
+                  </div>
+                  <form onSubmit={submitComment} className="comment-form"><input name="handle" required maxLength={32} placeholder="@your_name" /><textarea name="body" required maxLength={300} placeholder="この部屋の刺さったポイントは？" /><button>コメントする ↗</button></form>
+                </> : <p className="comment-preview-note">コミュニティ投稿では、ここから部屋主にコメントできます。</p>}
+              </section>
             </div>
           </section>
         </div>
@@ -359,7 +523,7 @@ export default function Home() {
           <section className="submit-modal" role="dialog" aria-modal="true" aria-label="部屋を投稿">
             <button className="modal-close" onClick={() => setSubmitOpen(false)}>CLOSE ×</button>
             {submitState === "done" ? (
-              <div className="submit-complete"><span>AI SCAN COMPLETE</span><strong>推し密度<br /><b>94%</b></strong><h2>その部屋、かなり刺さります。</h2><p>紹介文とシェアカードの下書きを作成しました。公開後すぐに共有できます。</p><button className="primary-action" onClick={() => { setSubmitOpen(false); setSubmitState("idle"); setPreview(null); notify("投稿を受け付けました。公開準備中です"); }}>投稿を公開する ↗</button></div>
+              <div className="submit-complete"><span>{submittedRoom?.llm ? "OPENAI VISION SCAN COMPLETE" : "LOCAL PREVIEW COMPLETE"}</span><strong>推し密度<br /><b>{submittedRoom?.score ?? 94}%</b></strong><h2>{submittedRoom?.archetype || "その部屋、かなり刺さります。"}</h2><p>{submittedRoom?.description || "紹介文とシェアカードの下書きを作成しました。"}</p>{submittedRoom && !submittedRoom.llm && <small className="scan-mode-note">公開環境にAIキーを設定すると、写真そのものを解析した診断に切り替わります。</small>}<button className="primary-action" onClick={() => { setSubmitOpen(false); setSubmitState("idle"); setPreview(null); if (submittedRoom) setSelected(submittedRoom); notify("部屋を公開しました"); }}>投稿を見る ↗</button></div>
             ) : (
               <form onSubmit={submitRoom}>
                 <p className="eyebrow"><span /> POST YOUR ROOM</p><h2>“好き”の全部を、<br />1枚から。</h2>
