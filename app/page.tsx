@@ -180,6 +180,7 @@ export default function Home() {
   const [category, setCategory] = useState("すべて");
   const [sort, setSort] = useState<"人気" | "新着">("人気");
   const [likes, setLikes] = useState<Record<string, number>>({});
+  const [likedRooms, setLikedRooms] = useState<Set<string>>(() => new Set());
   const [remoteRooms, setRemoteRooms] = useState<Room[]>([]);
   const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [selected, setSelected] = useState<Room | null>(null);
@@ -188,6 +189,8 @@ export default function Home() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [reportRoom, setReportRoom] = useState<Room | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<"idle" | "analyzing" | "done">("idle");
   const [submittedRoom, setSubmittedRoom] = useState<Room | null>(null);
@@ -241,14 +244,22 @@ export default function Home() {
   };
 
   const toggleLike = async (room: Room) => {
-    if (likes[room.id]) return;
+    if (likedRooms.has(room.id)) return;
+    setLikedRooms((current) => new Set(current).add(room.id));
     setLikes((current) => ({ ...current, [room.id]: 1 }));
     if (!room.remoteId) return;
     try {
       const response = await fetch(`/api/posts/${room.remoteId}/like`, { method: "POST" });
       if (!response.ok) throw new Error("like");
+      const payload = await response.json() as { likes?: number };
+      if (typeof payload.likes === "number") {
+        setRemoteRooms((current) => current.map((item) => item.id === room.id ? { ...item, likes: payload.likes! } : item));
+        setSelected((current) => current?.id === room.id ? { ...current, likes: payload.likes! } : current);
+        setLikes((current) => ({ ...current, [room.id]: 0 }));
+      }
     } catch {
       setLikes((current) => ({ ...current, [room.id]: 0 }));
+      setLikedRooms((current) => { const next = new Set(current); next.delete(room.id); return next; });
       notify("いいねを保存できませんでした");
     }
   };
@@ -296,6 +307,26 @@ export default function Home() {
       form.reset();
     } catch (error) {
       notify(error instanceof Error ? error.message : "コメントを投稿できませんでした");
+    }
+  };
+
+  const submitReport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!reportRoom?.remoteId) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    try {
+      const response = await fetch(`/api/posts/${reportRoom.remoteId}/report`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: data.get("reason"), details: data.get("details") }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "通報を受け付けられませんでした");
+      setReportRoom(null);
+      notify("通報を受け付けました。確認にご協力いただきありがとうございます");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "通報を受け付けられませんでした");
     }
   };
 
@@ -506,7 +537,7 @@ export default function Home() {
               <button className="card-title" onClick={() => setSelected(room)}>{room.title}</button>
               <div className="card-footer">
                 <span>{room.user}</span>
-                <span className="card-reactions"><small>COM {room.commentCount ?? 0}</small><button className={likes[room.id] ? "liked" : ""} onClick={() => toggleLike(room)} aria-label="いいね">♡ {room.likes + (likes[room.id] || 0)}</button></span>
+                <span className="card-reactions"><small>COM {room.commentCount ?? 0}</small><button className={likedRooms.has(room.id) ? "liked" : ""} onClick={() => toggleLike(room)} aria-label="いいね">♡ {room.likes + (likes[room.id] || 0)}</button></span>
               </div>
             </article>
           ))}
@@ -573,7 +604,7 @@ export default function Home() {
 
       <footer>
         <div className="footer-brand"><a className="brand" href="#top">OTA<span>BASE</span><sup>β</sup></a><p>偏愛を、部屋から世界へ。</p></div>
-        <div className="footer-links"><div><b>EXPLORE</b><a href="#rooms">新着の部屋</a><a href="#ranking">ランキング</a><button onClick={() => setAiOpen(true)}>AI SCAN</button></div><div><b>GUIDE</b><a href="#about">OTABASEとは</a><button onClick={() => setSubmitOpen(true)}>投稿ガイド</button><a href="#top">コミュニティルール</a></div><div><b>FOLLOW</b><button onClick={() => share()}>X / TWITTER</button><button onClick={() => share()}>INSTAGRAM</button><button onClick={() => share()}>TIKTOK</button></div></div>
+        <div className="footer-links"><div><b>EXPLORE</b><a href="#rooms">新着の部屋</a><a href="#ranking">ランキング</a><button onClick={() => setAiOpen(true)}>AI SCAN</button></div><div><b>GUIDE</b><a href="#about">OTABASEとは</a><button onClick={() => setSubmitOpen(true)}>投稿ガイド</button><button onClick={() => setRulesOpen(true)}>コミュニティルール</button></div><div><b>FOLLOW</b><button onClick={() => share()}>X / TWITTER</button><button onClick={() => share()}>INSTAGRAM</button><button onClick={() => share()}>TIKTOK</button></div></div>
         <div className="footer-bottom"><span>© 2026 OTABASE</span><span>PRIVACY　 TERMS　 CONTACT</span><span>MADE FOR EVERY OBSESSION.</span></div>
       </footer>
 
@@ -599,6 +630,7 @@ export default function Home() {
               <div className="modal-actions"><button className="primary-action" onClick={() => share(selected)}>この部屋をシェア <b>↗</b></button><button onClick={() => toggleLike(selected)}>♡ いいね</button></div>
               <button className="share-card-action" onClick={() => shareCard(selected)}>実画像入りルームカードを共有・保存 ↗</button>
               <div className="social-share-row"><button onClick={() => shareTo("x", selected)}>Xでシェア</button><button onClick={() => shareTo("line", selected)}>LINE</button><button onClick={() => shareTo("copy", selected)}>リンクをコピー</button></div>
+              {selected.remoteId && <button className="report-action" onClick={() => setReportRoom(selected)}>この投稿を通報する</button>}
               <section className="comments-section">
                 <h3>ROOM TALK <span>{comments.length}</span></h3>
                 {selected.remoteId ? <>
@@ -650,6 +682,27 @@ export default function Home() {
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setShareOpen(false)}>
           <section className="simple-modal share-modal" role="dialog" aria-modal="true" aria-label="シェアカード作成">
             <button className="modal-close" onClick={() => setShareOpen(false)}>CLOSE ×</button><p className="eyebrow light"><span /> VIRAL CARD GENERATOR</p><h2>あなたの部屋にも、<br />名前をつけよう。</h2><p>部屋を投稿すると、AIが“推し密度”とキャッチコピーを診断。SNSに最適なカードを自動生成します。</p><button className="primary-action" onClick={() => { setShareOpen(false); setSubmitOpen(true); }}>写真を選んで作る ↗</button><button className="ghost-action" onClick={() => share()}>OTABASEを友だちにシェア</button>
+          </section>
+        </div>
+      )}
+
+      {rulesOpen && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setRulesOpen(false)}>
+          <section className="simple-modal rules-modal" role="dialog" aria-modal="true" aria-label="コミュニティルール">
+            <button className="modal-close" onClick={() => setRulesOpen(false)}>CLOSE ×</button>
+            <p className="eyebrow light"><span /> COMMUNITY RULES</p><h2>偏愛には敬意を。<br />人にはやさしく。</h2>
+            <ol><li><b>自分が権利を持つ写真を投稿する。</b><span>他人の部屋・人物・作品を無断掲載しないでください。</span></li><li><b>好きの大小を競わせない。</b><span>部屋の広さ、金額、暮らし方や人の属性を嘲笑しないでください。</span></li><li><b>危険・成人向け・違法な内容を載せない。</b><span>個人情報や住所が写り込んでいないか投稿前に確認してください。</span></li><li><b>商品紹介は正直に。</b><span>広告・宣伝・提供品は投稿文で明示してください。</span></li></ol>
+            <p>ルール違反が疑われる投稿は詳細画面から通報できます。複数の通報が集まった投稿は自動的に確認待ちになります。</p>
+          </section>
+        </div>
+      )}
+
+      {reportRoom && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setReportRoom(null)}>
+          <section className="report-modal" role="dialog" aria-modal="true" aria-label="投稿を通報">
+            <button className="modal-close" onClick={() => setReportRoom(null)}>CLOSE ×</button>
+            <p className="eyebrow"><span /> REPORT ROOM</p><h2>この投稿を<br />確認依頼しますか？</h2><p className="report-target">{reportRoom.title}</p>
+            <form onSubmit={submitReport}><label>理由<select name="reason" required defaultValue=""><option value="" disabled>選択してください</option><option>権利侵害</option><option>嫌がらせ・差別</option><option>成人向け・危険物</option><option>スパム・宣伝</option><option>その他</option></select></label><label>補足（任意）<textarea name="details" maxLength={500} placeholder="運営が確認しやすい情報を入力してください" /></label><button className="primary-action">確認を依頼する ↗</button></form>
           </section>
         </div>
       )}

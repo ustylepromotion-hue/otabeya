@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const rooms = sqliteTable("rooms", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -41,3 +41,23 @@ export const affiliateClicks = sqliteTable("affiliate_clicks", {
   position: integer("position").notNull().default(1),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 }, (table) => [index("affiliate_clicks_room_ref_idx").on(table.roomRef)]);
+
+export const roomLikes = sqliteTable("room_likes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  roomId: integer("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
+  visitorId: text("visitor_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+}, (table) => [uniqueIndex("room_likes_room_visitor_uidx").on(table.roomId, table.visitorId)]);
+
+export const reports = sqliteTable("reports", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  roomId: integer("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
+  visitorId: text("visitor_id").notNull(),
+  reason: text("reason").notNull(),
+  details: text("details").notNull().default(""),
+  status: text("status").notNull().default("open"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+}, (table) => [
+  uniqueIndex("reports_room_visitor_uidx").on(table.roomId, table.visitorId),
+  index("reports_room_status_idx").on(table.roomId, table.status),
+]);
