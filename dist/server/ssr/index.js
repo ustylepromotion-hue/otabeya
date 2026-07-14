@@ -1091,9 +1091,11 @@ function setNavigationContext(ctx) {
 	_setServerContext(ctx);
 }
 var isServer = typeof window === "undefined";
+/** basePath from next.config.js, injected by the plugin at build time */
+var __basePath = "/advisor/1kh/otby/77";
 function getCurrentInterceptionContext() {
 	if (isServer) return null;
-	return stripBasePath(window.location.pathname, "");
+	return stripBasePath(window.location.pathname, __basePath);
 }
 /** Get or create the shared in-memory RSC prefetch cache on window. */
 function getPrefetchCache() {
@@ -1191,7 +1193,7 @@ function getClientNavigationState() {
 		listeners: /* @__PURE__ */ new Set(),
 		cachedSearch: window.location.search,
 		cachedReadonlySearchParams: new ReadonlyURLSearchParams(window.location.search),
-		cachedPathname: stripBasePath(window.location.pathname, ""),
+		cachedPathname: stripBasePath(window.location.pathname, __basePath),
 		clientParams: {},
 		clientParamsJson: "{}",
 		pendingClientParams: null,
@@ -1227,7 +1229,7 @@ function syncCommittedUrlStateFromLocation() {
 	const state = getClientNavigationState();
 	if (!state) return false;
 	let changed = false;
-	const pathname = stripBasePath(window.location.pathname, "");
+	const pathname = stripBasePath(window.location.pathname, __basePath);
 	if (pathname !== state.cachedPathname) {
 		state.cachedPathname = pathname;
 		changed = true;
@@ -1287,7 +1289,7 @@ function isExternalUrl(href) {
 function isHashOnlyChange(href) {
 	if (typeof window === "undefined") return false;
 	if (href.startsWith("#")) return true;
-	return isHashOnlyBrowserUrlChange(href, window.location.href, "");
+	return isHashOnlyBrowserUrlChange(href, window.location.href, __basePath);
 }
 /**
 * Scroll to a hash target element, or to the top if no hash.
@@ -1400,7 +1402,7 @@ function restoreScrollPosition(state) {
 async function navigateClientSide(href, mode, scroll, programmaticTransition = false) {
 	let normalizedHref = href;
 	if (isExternalUrl(href)) {
-		const localPath = toSameOriginAppPath(href, "");
+		const localPath = toSameOriginAppPath(href, __basePath);
 		if (localPath == null) {
 			if (mode === "replace") window.location.replace(href);
 			else window.location.assign(href);
@@ -1408,7 +1410,7 @@ async function navigateClientSide(href, mode, scroll, programmaticTransition = f
 		}
 		normalizedHref = localPath;
 	}
-	const fullHref = toBrowserNavigationHref(normalizedHref, window.location.href, "");
+	const fullHref = toBrowserNavigationHref(normalizedHref, window.location.href, __basePath);
 	notifyAppRouterTransitionStart(fullHref, mode);
 	if (mode === "push") saveScrollPosition();
 	if (isHashOnlyChange(fullHref)) {
@@ -1481,11 +1483,11 @@ var _appRouter = {
 		(async () => {
 			let prefetchHref = href;
 			if (href.startsWith("http://") || href.startsWith("https://") || href.startsWith("//")) {
-				const localPath = toSameOriginAppPath(href, "");
+				const localPath = toSameOriginAppPath(href, __basePath);
 				if (localPath == null) return;
 				prefetchHref = localPath;
 			}
-			const fullHref = toBrowserNavigationHref(prefetchHref, window.location.href, "");
+			const fullHref = toBrowserNavigationHref(prefetchHref, window.location.href, __basePath);
 			const interceptionContext = getCurrentInterceptionContext();
 			const mountedSlotsHeader = getMountedSlotsHeader();
 			const headers = createRscRequestHeaders({ interceptionContext });

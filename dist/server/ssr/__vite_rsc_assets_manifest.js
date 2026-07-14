@@ -1,37 +1,37 @@
 export default {
-  "bootstrapScriptContent": "import(\"/assets/index-Dcx-pMdb.js\")",
+  "bootstrapScriptContent": "import(\"/advisor/1kh/otby/77/assets/index-BznynTcG.js\")",
   "clientReferenceDeps": {
     "6efdf509a785": {
       "js": [
-        "/assets/page-vLx9Xps2.js",
-        "/assets/rolldown-runtime-S-ySWqyJ.js",
-        "/assets/framework-CXnKph_e.js",
-        "/assets/index-Dcx-pMdb.js"
+        "/advisor/1kh/otby/77/assets/page-vLx9Xps2.js",
+        "/advisor/1kh/otby/77/assets/rolldown-runtime-S-ySWqyJ.js",
+        "/advisor/1kh/otby/77/assets/framework-CXnKph_e.js",
+        "/advisor/1kh/otby/77/assets/index-BznynTcG.js"
       ],
       "css": []
     },
     "593f344dc510": {
       "js": [
-        "/assets/index-Dcx-pMdb.js",
-        "/assets/rolldown-runtime-S-ySWqyJ.js",
-        "/assets/framework-CXnKph_e.js"
+        "/advisor/1kh/otby/77/assets/index-BznynTcG.js",
+        "/advisor/1kh/otby/77/assets/rolldown-runtime-S-ySWqyJ.js",
+        "/advisor/1kh/otby/77/assets/framework-CXnKph_e.js"
       ],
       "css": []
     },
     "15c18cfaeeff": {
       "js": [
-        "/assets/layout-segment-context-JwF1TPeu.js",
-        "/assets/rolldown-runtime-S-ySWqyJ.js",
-        "/assets/index-Dcx-pMdb.js",
-        "/assets/framework-CXnKph_e.js"
+        "/advisor/1kh/otby/77/assets/layout-segment-context-B9rOiziN.js",
+        "/advisor/1kh/otby/77/assets/rolldown-runtime-S-ySWqyJ.js",
+        "/advisor/1kh/otby/77/assets/index-BznynTcG.js",
+        "/advisor/1kh/otby/77/assets/framework-CXnKph_e.js"
       ],
       "css": []
     },
     "8c0f216c4604": {
       "js": [
-        "/assets/index-Dcx-pMdb.js",
-        "/assets/rolldown-runtime-S-ySWqyJ.js",
-        "/assets/framework-CXnKph_e.js"
+        "/advisor/1kh/otby/77/assets/index-BznynTcG.js",
+        "/advisor/1kh/otby/77/assets/rolldown-runtime-S-ySWqyJ.js",
+        "/advisor/1kh/otby/77/assets/framework-CXnKph_e.js"
       ],
       "css": []
     }
@@ -40,7 +40,7 @@ export default {
     "app/layout.tsx": {
       "js": [],
       "css": [
-        "/assets/index-CPUTwFTC.css"
+        "/advisor/1kh/otby/77/assets/index-CDx4eCYr.css"
       ]
     }
   }
