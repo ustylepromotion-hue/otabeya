@@ -197,6 +197,15 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const deepLinkHandled = useRef(false);
 
+  // fal 画像生成の状態
+  const [genState, setGenState] = useState<"idle" | "generating" | "done" | "error">("idle");
+  const [genPrompt, setGenPrompt] = useState("");
+  const [genSize, setGenSize] = useState<"square_hd" | "portrait_4_3" | "landscape_4_3">("square_hd");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [genPreview, setGenPreview] = useState<string | null>(null);
+  const [genError, setGenError] = useState("");
+  const genInFlight = useRef(false);
+
   const allRooms = useMemo(() => [...remoteRooms, ...rooms], [remoteRooms]);
 
   const filtered = useMemo(() => {
@@ -266,8 +275,60 @@ export default function Home() {
 
   const onImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) setPreview(URL.createObjectURL(file));
+    if (file) {
+      setPreview(URL.createObjectURL(file));
+      // 手動アップロードを選んだら、生成結果を無効化する。
+      setGeneratedKey(null);
+      setGenPreview(null);
+      setGenState("idle");
+    }
   };
+
+  const resetGenerated = () => {
+    setGeneratedKey(null);
+    setGenPreview(null);
+    setGenState("idle");
+    setGenError("");
+  };
+
+  const generateImage = async () => {
+    if (genInFlight.current) return; // 二重送信（連続クリック・複数課金）を防止
+    const prompt = genPrompt.trim();
+    if (!prompt) {
+      setGenError("部屋のこだわりや雰囲気を入力してください。");
+      return;
+    }
+    genInFlight.current = true;
+    setGenState("generating");
+    setGenError("");
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt, imageSize: genSize, outputFormat: "png" }),
+      });
+      const payload = await response.json() as { imageKey?: string; error?: string };
+      if (!response.ok || !payload.imageKey) throw new Error(payload.error || "画像生成に失敗しました");
+      const key = payload.imageKey;
+      setGeneratedKey(key);
+      setGenPreview(`/api/images/${encodeURIComponent(key)}`);
+      setPreview(`/api/images/${encodeURIComponent(key)}`);
+      setGenState("done");
+    } catch (error) {
+      setGenState("error");
+      setGenError(error instanceof Error ? error.message : "画像生成に失敗しました。もう一度お試しください。");
+    } finally {
+      genInFlight.current = false;
+    }
+  };
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+      reader.readAsDataURL(file);
+    });
 
   const submitRoom = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -275,11 +336,34 @@ export default function Home() {
     const form = event.currentTarget;
     const started = Date.now();
     try {
-      const response = await fetch("/api/posts", { method: "POST", body: new FormData(form) });
-      const payload = await response.json() as { room?: ApiRoom; error?: string };
-      if (!response.ok || !payload.room) throw new Error(payload.error || "post failed");
-      const room = fromApi(payload.room);
+      const fd = new FormData(form);
+      const payload: Record<string, unknown> = {
+        title: fd.get("title"),
+        handle: fd.get("handle"),
+        category: fd.get("category"),
+        description: fd.get("description"),
+        items: fd.get("items"),
+      };
+      if (generatedKey) {
+        payload.generatedImageKey = generatedKey;
+      } else {
+        const image = fd.get("image");
+        if (image instanceof File) {
+          const url = await fileToDataUrl(image);
+          payload.imageBase64 = url;
+          payload.imageType = image.type;
+        }
+      }
+      const response = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json() as { room?: ApiRoom; error?: string };
+      if (!response.ok || !result.room) throw new Error(result.error || "post failed");
+      const room = fromApi(result.room);
       setSubmittedRoom(room);
+      resetGenerated();
       setRemoteRooms((current) => [room, ...current.filter((item) => item.id !== room.id)]);
       const wait = Math.max(0, 1500 - (Date.now() - started));
       window.setTimeout(() => setSubmitState("done"), wait);
@@ -470,8 +554,8 @@ export default function Home() {
           <a href="#ranking">RANKING</a>
           <a href="#about">ABOUT</a>
         </nav>
-        <button className="post-button" onClick={() => setSubmitOpen(true)}>
-          <span>＋</span> 部屋を投稿
+        <button className="post-button" onClick={() => setSubmitOpen(true)} aria-label="自分の部屋を投稿する">
+          <span>＋</span> 自分の部屋を投稿する
         </button>
       </header>
 
@@ -481,7 +565,7 @@ export default function Home() {
           <h1>あなたの<span>“好き”</span>は、<br />部屋に出る。</h1>
           <p className="hero-lead">ゲーム、アニメ、音楽、ガジェット。<br />偏愛を詰め込んだ部屋を見せ合う、オタク部屋投稿コミュニティ。</p>
           <div className="hero-actions">
-            <button className="primary-action" onClick={() => setSubmitOpen(true)}>自慢の部屋を投稿する <b>↗</b></button>
+            <button className="primary-action" onClick={() => setSubmitOpen(true)}>自分の部屋を投稿する <b>↗</b></button>
             <button className="text-action" onClick={() => document.querySelector("#rooms")?.scrollIntoView({ behavior: "smooth" })}>みんなの部屋を見る <span>↓</span></button>
           </div>
           <div className="hero-stats">
@@ -598,7 +682,7 @@ export default function Home() {
       <section className="cta-section">
         <p className="eyebrow"><span /> YOUR ROOM DESERVES THE SPOTLIGHT</p>
         <h2>見せてくれ。<br />あなたの<span>“好き”</span>の全部を。</h2>
-        <button className="primary-action" onClick={() => setSubmitOpen(true)}>今すぐ部屋を投稿する <b>↗</b></button>
+        <button className="primary-action" onClick={() => setSubmitOpen(true)}>自分の部屋を投稿する <b>↗</b></button>
         <small>投稿無料・写真1枚から / AIが紹介文をサポート</small>
       </section>
 
@@ -650,14 +734,45 @@ export default function Home() {
           <section className="submit-modal" role="dialog" aria-modal="true" aria-label="部屋を投稿">
             <button className="modal-close" onClick={() => setSubmitOpen(false)}>CLOSE ×</button>
             {submitState === "done" ? (
-              <div className="submit-complete"><span>{submittedRoom?.llm ? "OPENAI VISION SCAN COMPLETE" : "LOCAL PREVIEW COMPLETE"}</span><strong>推し密度<br /><b>{submittedRoom?.score ?? 94}%</b></strong><h2>{submittedRoom?.archetype || "その部屋、かなり刺さります。"}</h2><p>{submittedRoom?.description || "紹介文とシェアカードの下書きを作成しました。"}</p>{submittedRoom && !submittedRoom.llm && <small className="scan-mode-note">公開環境にAIキーを設定すると、写真そのものを解析した診断に切り替わります。</small>}<button className="primary-action" onClick={() => { setSubmitOpen(false); setSubmitState("idle"); setPreview(null); if (submittedRoom) setSelected(submittedRoom); notify("部屋を公開しました"); }}>投稿を見る ↗</button></div>
+              <div className="submit-complete"><span>{submittedRoom?.llm ? "OPENAI VISION SCAN COMPLETE" : "LOCAL PREVIEW COMPLETE"}</span><strong>推し密度<br /><b>{submittedRoom?.score ?? 94}%</b></strong><h2>{submittedRoom?.archetype || "その部屋、かなり刺さります。"}</h2><p>{submittedRoom?.description || "紹介文とシェアカードの下書きを作成しました。"}</p>{submittedRoom && !submittedRoom.llm && <small className="scan-mode-note">公開環境にAIキーを設定すると、写真そのものを解析した診断に切り替わります。</small>}<button className="primary-action" onClick={() => { setSubmitOpen(false); setSubmitState("idle"); setPreview(null); resetGenerated(); if (submittedRoom) setSelected(submittedRoom); notify("部屋を公開しました"); }}>投稿を見る ↗</button></div>
             ) : (
               <form onSubmit={submitRoom}>
                 <p className="eyebrow"><span /> POST YOUR ROOM</p><h2>“好き”の全部を、<br />1枚から。</h2>
-                <label className={`upload-zone ${preview ? "has-preview" : ""}`}>
+
+                <div className={`upload-zone ${preview ? "has-preview" : ""}`}>
                   {preview ? <img src={preview} alt="投稿写真のプレビュー" /> : <><b>＋</b><strong>部屋の写真を選ぶ</strong><small>JPG / PNG / WEBP・最大10MB</small></>}
-                  <input type="file" name="image" accept="image/jpeg,image/png,image/webp" required onChange={onImage} />
-                </label>
+                  <input type="file" name="image" accept="image/jpeg,image/png,image/webp" required={!generatedKey} onChange={onImage} />
+                </div>
+
+                <div className="ai-gen-block">
+                  <p className="ai-gen-title">または、AIで部屋画像を生成</p>
+                  <label className="ai-gen-prompt">
+                    <span>こだわり・雰囲気を日本語で</span>
+                    <textarea name="genPrompt" value={genPrompt} maxLength={1000} placeholder="例：深夜のゲーミング部屋。紫のRGBライト、吸音パネル、黒い自作PC。落ち着いた没入感。" onChange={(e) => setGenPrompt(e.target.value)} disabled={genState === "generating"} />
+                  </label>
+                  <div className="ai-gen-row">
+                    <label className="ai-gen-size">
+                      <span>比率</span>
+                      <select value={genSize} onChange={(e) => setGenSize(e.target.value as "square_hd" | "portrait_4_3" | "landscape_4_3")} disabled={genState === "generating"}>
+                        <option value="square_hd">正方形</option>
+                        <option value="portrait_4_3">縦長</option>
+                        <option value="landscape_4_3">横長</option>
+                      </select>
+                    </label>
+                    <button type="button" className="ai-gen-button" onClick={generateImage} disabled={genState === "generating" || !genPrompt.trim()}>
+                      {genState === "generating" ? "生成中…" : genPreview ? "再生成する" : "AIで生成する"}
+                    </button>
+                  </div>
+                  {genState === "error" && genError && <p className="ai-gen-error" role="alert">{genError}</p>}
+                  {genState === "generating" && <p className="ai-gen-note">画像を生成しています。そのままお待ちください（数秒〜数十秒）。</p>}
+                  {genPreview && (
+                    <div className="ai-gen-result">
+                      <img src={genPreview} alt="AIが生成した部屋のプレビュー" />
+                      <span className="ai-gen-badge">AI生成済み</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="form-grid"><label>タイトル<input name="title" required placeholder="例：4.5畳に作った深夜の要塞" /></label><label>ユーザー名<input name="handle" required placeholder="@your_name" /></label></div>
                 <label>カテゴリ<select name="category" defaultValue="ゲーミング">{categories.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
                 <label>こだわりポイント<textarea name="description" required placeholder="この部屋でいちばん見てほしいところは？" /></label>
@@ -706,6 +821,14 @@ export default function Home() {
           </section>
         </div>
       )}
+
+      <button
+        className="mobile-post-cta"
+        onClick={() => setSubmitOpen(true)}
+        aria-label="自分の部屋を投稿する"
+      >
+        <span className="mobile-post-cta-plus">＋</span> 自分の部屋を投稿する
+      </button>
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>

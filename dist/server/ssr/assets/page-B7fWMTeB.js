@@ -227,6 +227,13 @@ function Home() {
 	const [submittedRoom, setSubmittedRoom] = (0, import_react.useState)(null);
 	const [toast, setToast] = (0, import_react.useState)("");
 	const deepLinkHandled = (0, import_react.useRef)(false);
+	const [genState, setGenState] = (0, import_react.useState)("idle");
+	const [genPrompt, setGenPrompt] = (0, import_react.useState)("");
+	const [genSize, setGenSize] = (0, import_react.useState)("square_hd");
+	const [generatedKey, setGeneratedKey] = (0, import_react.useState)(null);
+	const [genPreview, setGenPreview] = (0, import_react.useState)(null);
+	const [genError, setGenError] = (0, import_react.useState)("");
+	const genInFlight = (0, import_react.useRef)(false);
 	const allRooms = (0, import_react.useMemo)(() => [...remoteRooms, ...rooms], [remoteRooms]);
 	const filtered = (0, import_react.useMemo)(() => {
 		const list = category === "すべて" ? [...allRooms] : allRooms.filter((room) => room.category === category);
@@ -316,22 +323,91 @@ function Home() {
 	};
 	const onImage = (event) => {
 		const file = event.target.files?.[0];
-		if (file) setPreview(URL.createObjectURL(file));
+		if (file) {
+			setPreview(URL.createObjectURL(file));
+			setGeneratedKey(null);
+			setGenPreview(null);
+			setGenState("idle");
+		}
 	};
+	const resetGenerated = () => {
+		setGeneratedKey(null);
+		setGenPreview(null);
+		setGenState("idle");
+		setGenError("");
+	};
+	const generateImage = async () => {
+		if (genInFlight.current) return;
+		const prompt = genPrompt.trim();
+		if (!prompt) {
+			setGenError("部屋のこだわりや雰囲気を入力してください。");
+			return;
+		}
+		genInFlight.current = true;
+		setGenState("generating");
+		setGenError("");
+		try {
+			const response = await fetch("/api/generate", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					prompt,
+					imageSize: genSize,
+					outputFormat: "png"
+				})
+			});
+			const payload = await response.json();
+			if (!response.ok || !payload.imageKey) throw new Error(payload.error || "画像生成に失敗しました");
+			const key = payload.imageKey;
+			setGeneratedKey(key);
+			setGenPreview(`/api/images/${encodeURIComponent(key)}`);
+			setPreview(`/api/images/${encodeURIComponent(key)}`);
+			setGenState("done");
+		} catch (error) {
+			setGenState("error");
+			setGenError(error instanceof Error ? error.message : "画像生成に失敗しました。もう一度お試しください。");
+		} finally {
+			genInFlight.current = false;
+		}
+	};
+	const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(String(reader.result));
+		reader.onerror = () => reject(/* @__PURE__ */ new Error("画像の読み込みに失敗しました"));
+		reader.readAsDataURL(file);
+	});
 	const submitRoom = async (event) => {
 		event.preventDefault();
 		setSubmitState("analyzing");
 		const form = event.currentTarget;
 		const started = Date.now();
 		try {
+			const fd = new FormData(form);
+			const payload = {
+				title: fd.get("title"),
+				handle: fd.get("handle"),
+				category: fd.get("category"),
+				description: fd.get("description"),
+				items: fd.get("items")
+			};
+			if (generatedKey) payload.generatedImageKey = generatedKey;
+			else {
+				const image = fd.get("image");
+				if (image instanceof File) {
+					payload.imageBase64 = await fileToDataUrl(image);
+					payload.imageType = image.type;
+				}
+			}
 			const response = await fetch("/api/posts", {
 				method: "POST",
-				body: new FormData(form)
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(payload)
 			});
-			const payload = await response.json();
-			if (!response.ok || !payload.room) throw new Error(payload.error || "post failed");
-			const room = fromApi(payload.room);
+			const result = await response.json();
+			if (!response.ok || !result.room) throw new Error(result.error || "post failed");
+			const room = fromApi(result.room);
 			setSubmittedRoom(room);
+			resetGenerated();
 			setRemoteRooms((current) => [room, ...current.filter((item) => item.id !== room.id)]);
 			const wait = Math.max(0, 1500 - (Date.now() - started));
 			window.setTimeout(() => setSubmitState("done"), wait);
@@ -556,7 +632,8 @@ function Home() {
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					className: "post-button",
 					onClick: () => setSubmitOpen(true),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "＋" }), " 部屋を投稿"]
+					"aria-label": "自分の部屋を投稿する",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "＋" }), " 自分の部屋を投稿する"]
 				})
 			]
 		}),
@@ -590,7 +667,7 @@ function Home() {
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							className: "primary-action",
 							onClick: () => setSubmitOpen(true),
-							children: ["自慢の部屋を投稿する ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "↗" })]
+							children: ["自分の部屋を投稿する ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "↗" })]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							className: "text-action",
 							onClick: () => document.querySelector("#rooms")?.scrollIntoView({ behavior: "smooth" }),
@@ -923,7 +1000,7 @@ function Home() {
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					className: "primary-action",
 					onClick: () => setSubmitOpen(true),
-					children: ["今すぐ部屋を投稿する ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "↗" })]
+					children: ["自分の部屋を投稿する ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "↗" })]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("small", { children: "投稿無料・写真1枚から / AIが紹介文をサポート" })
 			]
@@ -1170,6 +1247,7 @@ function Home() {
 								setSubmitOpen(false);
 								setSubmitState("idle");
 								setPreview(null);
+								resetGenerated();
 								if (submittedRoom) setSelected(submittedRoom);
 								notify("部屋を公開しました");
 							},
@@ -1188,7 +1266,7 @@ function Home() {
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
 							"1枚から。"
 						] }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: `upload-zone ${preview ? "has-preview" : ""}`,
 							children: [preview ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 								src: preview,
@@ -1201,9 +1279,79 @@ function Home() {
 								type: "file",
 								name: "image",
 								accept: "image/jpeg,image/png,image/webp",
-								required: true,
+								required: !generatedKey,
 								onChange: onImage
 							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "ai-gen-block",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "ai-gen-title",
+									children: "または、AIで部屋画像を生成"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+									className: "ai-gen-prompt",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "こだわり・雰囲気を日本語で" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
+										name: "genPrompt",
+										value: genPrompt,
+										maxLength: 1e3,
+										placeholder: "例：深夜のゲーミング部屋。紫のRGBライト、吸音パネル、黒い自作PC。落ち着いた没入感。",
+										onChange: (e) => setGenPrompt(e.target.value),
+										disabled: genState === "generating"
+									})]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "ai-gen-row",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+										className: "ai-gen-size",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "比率" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
+											value: genSize,
+											onChange: (e) => setGenSize(e.target.value),
+											disabled: genState === "generating",
+											children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+													value: "square_hd",
+													children: "正方形"
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+													value: "portrait_4_3",
+													children: "縦長"
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+													value: "landscape_4_3",
+													children: "横長"
+												})
+											]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: "ai-gen-button",
+										onClick: generateImage,
+										disabled: genState === "generating" || !genPrompt.trim(),
+										children: genState === "generating" ? "生成中…" : genPreview ? "再生成する" : "AIで生成する"
+									})]
+								}),
+								genState === "error" && genError && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "ai-gen-error",
+									role: "alert",
+									children: genError
+								}),
+								genState === "generating" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "ai-gen-note",
+									children: "画像を生成しています。そのままお待ちください（数秒〜数十秒）。"
+								}),
+								genPreview && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "ai-gen-result",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+										src: genPreview,
+										alt: "AIが生成した部屋のプレビュー"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "ai-gen-badge",
+										children: "AI生成済み"
+									})]
+								})
+							]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "form-grid",
@@ -1416,6 +1564,15 @@ function Home() {
 					})
 				]
 			})
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			className: "mobile-post-cta",
+			onClick: () => setSubmitOpen(true),
+			"aria-label": "自分の部屋を投稿する",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: "mobile-post-cta-plus",
+				children: "＋"
+			}), " 自分の部屋を投稿する"]
 		}),
 		toast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: "toast",

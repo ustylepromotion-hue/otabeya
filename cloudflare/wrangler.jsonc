@@ -3,7 +3,9 @@
   "main": "./src/index.ts",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": {},
+  "vars": {
+    "FAL_MODEL": "fal-ai/flux/dev"
+  },
   "d1_databases": [
     {
       "binding": "DB",

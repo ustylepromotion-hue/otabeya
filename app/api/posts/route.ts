@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
 import { comments, rooms } from "../../../db/schema";
 import { analyzeRoom, RoomSafetyError } from "../../../lib/room-ai";
+import { storeRemoteImage } from "../../../lib/r2";
 
 type StorageEnv = { ROOM_IMAGES?: R2Bucket };
 
@@ -36,6 +37,8 @@ function publicRoom(room: typeof rooms.$inferSelect, commentCount = 0) {
   };
 }
 
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 export async function GET() {
   try {
     const db = getDb();
@@ -48,35 +51,75 @@ export async function GET() {
   }
 }
 
+// NOTE: This endpoint intentionally uses request.json() instead of
+// request.formData(). On the vinext-on-Workers runtime, materializing values
+// from request.formData() (calling .get()/.entries()/reading file bodies)
+// crashes the request connection and yields an empty response. JSON avoids it.
 export async function POST(request: Request) {
   const storage = (env as unknown as StorageEnv).ROOM_IMAGES;
   let storedKey = "";
   try {
     if (!storage) return Response.json({ error: "画像ストレージが利用できません" }, { status: 503 });
-    const data = await request.formData();
-    const image = data.get("image");
-    const title = String(data.get("title") ?? "").trim();
-    const handle = String(data.get("handle") ?? "").trim().replace(/^([^@])/, "@$1");
-    const category = String(data.get("category") ?? "").trim();
-    const description = String(data.get("description") ?? "").trim();
-    const itemText = String(data.get("items") ?? "").trim();
 
-    if (!(image instanceof File) || !title || !handle || !category || !description) {
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return Response.json({ error: "リクエスト形式が正しくありません。" }, { status: 400 });
+    }
+
+    const generatedKey = typeof body.generatedImageKey === "string" ? body.generatedImageKey : "";
+    const imageBase64 = typeof body.imageBase64 === "string" ? body.imageBase64 : "";
+    const imageType = typeof body.imageType === "string" ? body.imageType : "";
+    const title = String(body.title ?? "").trim();
+    const handle = String(body.handle ?? "").trim().replace(/^([^@])/, "@$1");
+    const category = String(body.category ?? "").trim();
+    const description = String(body.description ?? "").trim();
+    const itemText = String(body.items ?? "").trim();
+
+    if (!title || !handle || !category || !description) {
       return Response.json({ error: "必須項目を入力してください" }, { status: 400 });
     }
     if (title.length > 80 || handle.length > 32 || description.length > 800 || itemText.length > 300) {
       return Response.json({ error: "入力文字数を確認してください" }, { status: 400 });
     }
-    if (!["image/jpeg", "image/png", "image/webp"].includes(image.type) || image.size > 10 * 1024 * 1024) {
-      return Response.json({ error: "JPG・PNG・WEBP（10MB以内）を選んでください" }, { status: 400 });
+
+    let imageFile: File;
+    let finalImageType: string;
+
+    if (typeof generatedKey === "string" && generatedKey) {
+      // fal 生成画像の場合：R2 上の既存キーを再利用する（fal の一時 URL は保存しない）。
+      const existing = await storage.get(generatedKey);
+      if (!existing) return Response.json({ error: "生成画像が見つかりません。もう一度生成してください" }, { status: 400 });
+      const buffer = Buffer.from(await existing.arrayBuffer());
+      const ext = (existing.httpContentType?.split("/")[1] || "png").replace(/[^a-z0-9]/gi, "png");
+      finalImageType = /^(image\/(png|jpeg|webp))$/.test(existing.httpContentType ?? "") ? (existing.httpContentType as string) : `image/${ext}`;
+      imageFile = new File([buffer], `${generatedKey}.${ext}`, { type: finalImageType });
+    } else if (imageBase64 && ALLOWED_IMAGE_TYPES.has(imageType)) {
+      const cleanBase64 = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
+      const binary = Uint8Array.from(atob(cleanBase64), (c) => c.charCodeAt(0));
+      if (binary.byteLength > 10 * 1024 * 1024) {
+        return Response.json({ error: "JPG・PNG・WEBP（10MB以内）を選んでください" }, { status: 400 });
+      }
+      const ext = imageType.split("/")[1];
+      finalImageType = imageType;
+      imageFile = new File([binary], `upload.${ext}`, { type: imageType });
+    } else {
+      return Response.json({ error: "部屋の写真を選ぶか、AIで生成してください" }, { status: 400 });
     }
 
-    const analysis = await analyzeRoom(image, title, category, description, itemText);
-    storedKey = `${crypto.randomUUID()}.${image.type.split("/")[1]}`;
-    await storage.put(storedKey, image.stream(), { httpMetadata: { contentType: image.type, cacheControl: "public, max-age=31536000, immutable" } });
+    const analysis = await analyzeRoom(imageFile, title, category, description, itemText);
+    storedKey = `${crypto.randomUUID()}.${finalImageType.split("/")[1]}`;
+    if (typeof generatedKey === "string" && generatedKey && generatedKey !== storedKey) {
+      // 生成画像を新しいキーで複製して恒久保存。元の生成キーは掃除する。
+      await storage.put(storedKey, imageFile.stream(), { httpMetadata: { contentType: finalImageType, cacheControl: "public, max-age=31536000, immutable" } });
+      await storage.delete(generatedKey).catch(() => undefined);
+    } else {
+      await storage.put(storedKey, imageFile.stream(), { httpMetadata: { contentType: finalImageType, cacheControl: "public, max-age=31536000, immutable" } });
+    }
 
     const [room] = await getDb().insert(rooms).values({
-      title, handle, category, description, imageKey: storedKey, imageType: image.type,
+      title, handle, category, description, imageKey: storedKey, imageType: finalImageType,
       items: JSON.stringify(itemText.split(/[、,]/).map((item) => item.trim()).filter(Boolean)),
       aiScore: analysis.score, aiCaption: analysis.caption, aiShareCopy: analysis.shareCopy,
       aiArchetype: analysis.archetype, aiTags: JSON.stringify(analysis.tags),

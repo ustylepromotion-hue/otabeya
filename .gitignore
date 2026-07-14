@@ -39,5 +39,12 @@ yarn-error.log*
 next-env.d.ts
 # /dist/  -- included: wrangler deploys built assets locally
 /.wrangler/
+/tsconfig.tsbuildinfo
+# local-only / agent / handoff artifacts (not for production)
+/cloudflare/.wrangler/
+.guard/
+.hermes/
+引き継ぎ/
+launch-dev.sh
 /outputs/
 /work/
