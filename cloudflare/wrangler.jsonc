@@ -26,7 +26,7 @@
     "enabled": true
   },
   "routes": [
-    { "pattern": "labs-88.com/advisor/1kh/otby/77", "zone_name": "labs-88.com" },
-    { "pattern": "labs-88.com/advisor/1kh/otby/77*", "zone_name": "labs-88.com" }
+    { "pattern": "labs-88.com/otby/77", "zone_name": "labs-88.com" },
+    { "pattern": "labs-88.com/otby/77*", "zone_name": "labs-88.com" }
   ]
 }

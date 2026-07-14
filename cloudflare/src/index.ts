@@ -16,7 +16,7 @@
 
 import appHandler from "../../dist/server/index.js";
 
-const PREFIX = "/advisor/1kh/otby/77";
+const PREFIX = "/otby/77";
 
 interface Env {
   ASSETS: Fetcher;

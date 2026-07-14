@@ -7,9 +7,9 @@ cd "/Users/ust/Desktop/オタ部屋投稿掲示板"
 
 echo "== [0/3] ビルド成果の _headers をサブパス配下へ修正 =="
 # vinext は basePath を _headers に反映しないため、手動で合わせる
-# /assets/*  ->  /advisor/1kh/otby/77/assets/*
+# /assets/*  ->  /otby/77/assets/*
 if grep -q '^/assets/\*' dist/client/_headers; then
-  sed -i '' 's#^/assets/\*#/advisor/1kh/otby/77/assets/*#' dist/client/_headers
+  sed -i '' 's#^/assets/\*#/otby/77/assets/*#' dist/client/_headers
   echo "  修正済: $(grep 'assets' dist/client/_headers)"
 else
   echo "  すでにサブパス形式 or 該当なし"
