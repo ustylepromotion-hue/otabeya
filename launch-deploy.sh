@@ -16,6 +16,13 @@ else
 fi
 
 echo ""
+echo "== [0.5/3] vinext が生成した deploy config を無効化（自前 wrangler.jsonc を使う） =="
+# .wrangler/deploy/config.json が dist/server/wrangler.json を指しており、
+# 自前 cloudflare/wrangler.jsonc が無視されるのを防ぐ。
+rm -f .wrangler/deploy/config.json
+echo "  削除: .wrangler/deploy/config.json"
+
+echo ""
 echo "== [1/3] GitHub push (otabeya) =="
 echo "   ※ guard が案件名 'otabeya' の入力を求めるのでタイプして Enter"
 guard -- git push -u origin main
@@ -23,7 +30,8 @@ guard -- git push -u origin main
 echo ""
 echo "== [2/3] Cloudflare Worker deploy (otabeya-api) =="
 echo "   ※ guard が案件名 'otabeya' の入力を求めるのでタイプして Enter"
-guard -- npx wrangler deploy
+echo "   ※ 必ず --config cloudflare/wrangler.jsonc を指定（vinext config を回避）"
+guard -- npx wrangler deploy --config cloudflare/wrangler.jsonc
 
 echo ""
 echo "✅ デプロイ完了。ブラウザで確認:"
