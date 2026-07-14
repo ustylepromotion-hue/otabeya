@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  basePath: "/advisor/1kh/otby/77",
 };
 
 export default nextConfig;

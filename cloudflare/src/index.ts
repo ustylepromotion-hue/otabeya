@@ -1,12 +1,12 @@
 /**
- * Subpath-proxy Worker for the OTABASE (vinext) full-stack board app.
+ * Subpath Worker for the OTABASE (vinext) board app.
  *
- * Serves the app under https://labs-88.com/advisor/1kh/otby/77/
- * without modifying the vinext build output. The build assumes it runs at
- * the domain root ("/assets/*", "/api/*", "/_vinext/*"), so this Worker:
- *   1. strips PREFIX from incoming requests before calling the app handler
- *   2. rewrites absolute paths in HTML/JS/CSS responses to include PREFIX
- *   3. maps PREFIX/assets/* to the static ASSETS binding
+ * The app is built with next.config basePath = "/advisor/1kh/otby/77",
+ * so vinext itself emits and routes every path under that prefix.
+ * This Worker only needs to:
+ *   1. serve the request under labs-88.com/advisor/1kh/otby/77*
+ *   2. map the static ASSETS binding for /advisor/1kh/otby/77/assets/*
+ *   3. 404 anything outside the prefix so the existing apex (photo-web) is safe
  */
 
 import appHandler from "../../dist/server/index.js";
@@ -28,40 +28,6 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-// Absolute paths the vinext client emits at the domain root.
-const REWRITE_PATTERNS = [
-  '"/assets/',
-  '"/_vinext/',
-  '"/api/',
-  '"/rooms/',
-  '"/og.png"',
-  '"/favicon',
-];
-
-function rewriteBody(body: string): string {
-  let out = body;
-  for (const p of REWRITE_PATTERNS) {
-    const needle = p;
-    // Replace "PREFIX/assets/" collisions first by normalizing, then add prefix.
-    const already = needle.replace('"', `"${PREFIX}`);
-    // Avoid double-prefixing: strip any existing PREFIX then re-add.
-    const stripped = needle;
-    out = out.split(already).join(stripped); // remove accidental double prefix
-    out = out.split(stripped).join(already);
-  }
-  return out;
-}
-
-function shouldRewrite(contentType: string | null): boolean {
-  if (!contentType) return false;
-  return (
-    contentType.includes("text/html") ||
-    contentType.includes("application/javascript") ||
-    contentType.includes("text/javascript") ||
-    contentType.includes("text/css")
-  );
-}
-
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -72,39 +38,17 @@ const worker = {
       return new Response("Not Found", { status: 404 });
     }
 
-    // Normalize PREFIX (no trailing slash) -> internal root path.
-    let internalPath = url.pathname.slice(PREFIX.length);
-    if (internalPath === "") internalPath = "/";
-
-    // Static assets: PREFIX/assets/* -> ASSETS /assets/*
-    if (internalPath.startsWith("/assets/") || internalPath === "/assets") {
+    // Static assets live under PREFIX/assets/* and are served from the
+    // ASSETS binding (which stores them at /assets/*).
+    if (url.pathname.startsWith(PREFIX + "/assets/") || url.pathname === PREFIX + "/assets") {
       const assetUrl = new URL(url.toString());
-      assetUrl.pathname = internalPath;
+      assetUrl.pathname = url.pathname.slice(PREFIX.length); // -> /assets/...
       return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
     }
 
-    // Build the internal request the app sees (path without PREFIX).
-    const internalUrl = new URL(url.toString());
-    internalUrl.pathname = internalPath;
-    const internalRequest = new Request(internalUrl.toString(), request);
-
-    const response = await appHandler.fetch(internalRequest, env, ctx);
-
-    const contentType = response.headers.get("content-type");
-    if (!shouldRewrite(contentType)) {
-      return response;
-    }
-
-    const original = await response.text();
-    const rewritten = rewriteBody(original);
-
-    const headers = new Headers(response.headers);
-    headers.delete("content-length");
-    return new Response(rewritten, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    // Everything else (pages, /api/*, /_vinext/*) goes to the vinext handler,
+    // which already understands the basePath prefix.
+    return appHandler.fetch(request, env, ctx);
   },
 };
 

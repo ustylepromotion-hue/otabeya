@@ -1,5 +1,5 @@
 {
-  "name": "otabase-advisor-1kh-77",
+  "name": "otabeya-api",
   "main": "./src/index.ts",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
@@ -7,8 +7,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "otabase-advisor-1kh-77",
-      "database_id": "a61a02cb-de1d-48a7-8b03-4e5a3895c34d"
+      "database_name": "otabeya-db",
+      "database_id": "427554ec-f401-490c-92c7-4e1650a41ee2"
     }
   ],
   "r2_buckets": [],
@@ -20,7 +20,7 @@
     "enabled": true
   },
   "routes": [
-    { "pattern": "labs-88.com/advisor/1kh/otby/77", "custom_domain": true },
-    { "pattern": "labs-88.com/advisor/1kh/otby/77*", "custom_domain": true }
+    { "pattern": "labs-88.com/advisor/1kh/otby/77" },
+    { "pattern": "labs-88.com/advisor/1kh/otby/77*" }
   ]
 }
