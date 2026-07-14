@@ -1,0 +1,26 @@
+{
+  "name": "otabase-advisor-1kh-77",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {},
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "otabase-advisor-1kh-77",
+      "database_id": "a61a02cb-de1d-48a7-8b03-4e5a3895c34d"
+    }
+  ],
+  "r2_buckets": [],
+  "assets": {
+    "directory": "../dist/client",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    { "pattern": "labs-88.com/advisor/1kh/otby/77", "custom_domain": true },
+    { "pattern": "labs-88.com/advisor/1kh/otby/77*", "custom_domain": true }
+  ]
+}
