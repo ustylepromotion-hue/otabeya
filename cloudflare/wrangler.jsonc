@@ -14,13 +14,14 @@
   "r2_buckets": [],
   "assets": {
     "directory": "../dist/client",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
   "observability": {
     "enabled": true
   },
   "routes": [
-    { "pattern": "labs-88.com/advisor/1kh/otby/77" },
-    { "pattern": "labs-88.com/advisor/1kh/otby/77*" }
+    { "pattern": "labs-88.com/advisor/1kh/otby/77", "zone_name": "labs-88.com" },
+    { "pattern": "labs-88.com/advisor/1kh/otby/77*", "zone_name": "labs-88.com" }
   ]
 }
