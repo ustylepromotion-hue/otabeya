@@ -43,7 +43,14 @@ function isAssetPath(pathname: string): boolean {
 function rewriteHtmlBody(body: string): string {
   // vinext font loader emits unprefixed /assets/_vinext_fonts/* — reprefix so
   // the browser fetches them through this Worker Route.
-  return body.split("/assets/_vinext_fonts/").join(PREFIX + "/assets/_vinext_fonts/");
+  let out = body.split("/assets/_vinext_fonts/").join(PREFIX + "/assets/_vinext_fonts/");
+  // Some Next.js public-asset references (e.g. <img src="/rooms/hero.jpg">,
+  // /og.png) are emitted WITHOUT the basePath prefix. The browser would fetch
+  // them outside this Worker Route (against the apex, which 404s). Reprefix
+  // only src=/href= attributes so client JS paths are left untouched.
+  out = out.replace(/(src|href)=["'](\/rooms\/[^"']+)["']/gi, `$1="${PREFIX}$2"`);
+  out = out.replace(/(src|href)=["'](\/og\.[a-z0-9]+)["']/gi, `$1="${PREFIX}$2"`);
+  return out;
 }
 
 function shouldRewrite(contentType: string | null): boolean {
