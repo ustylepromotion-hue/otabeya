@@ -1,17 +1,16 @@
 /**
  * Subpath Worker for the OTABASE (vinext) board app.
  *
- * The app is built with next.config basePath = "/advisor/1kh/otby/77".
- * Most asset URLs are emitted with the prefix (/advisor/1kh/otby/77/assets/*),
- * but vinext's font loader emits unprefixed /assets/_vinext_fonts/* paths.
+ * The app is built with next.config basePath = "/otby/77".
+ * Most asset URLs are emitted with the prefix (/otby/77/assets/*), but
+ * vinext's font loader emits unprefixed /assets/_vinext_fonts/* paths
+ * (basePath gap). The browser fetches those unprefixed, which fall OUTSIDE
+ * the Worker Route (/otby/77*), so they 404 at the edge.
  *
- * Cloudflare Workers Assets maps the route prefix (/advisor/1kh/otby/77/assets/*)
- * to dist/client/assets/* on the origin, so any asset request must arrive with
- * the prefix. This Worker therefore:
- *   1. gates requests to PREFIX (404 outside, protecting the photo-web apex)
- *   2. rewrites unprefixed /assets/* (font loader gap) to PREFIX/assets/*
- *   3. maps PREFIX/assets/* -> ASSETS binding (/assets/* on the origin)
- *   4. forwards pages, /api/*, /_vinext/* to the vinext handler (basePath-aware)
+ * Fix: rewrite unprefixed /assets/_vinext_fonts/* inside HTML responses to
+ * the prefixed form, so the browser fetches them through this Worker.
+ * Asset requests that DO arrive here (prefixed or unprefixed fonts) are
+ * normalized to the origin-side path the ASSETS binding expects.
  */
 
 import appHandler from "../../dist/server/index.js";
@@ -36,9 +35,19 @@ interface ExecutionContext {
 // Paths that live in the ASSETS binding.
 function isAssetPath(pathname: string): boolean {
   if (pathname.startsWith(PREFIX + "/assets/") || pathname === PREFIX + "/assets") return true;
-  // vinext font loader emits unprefixed /assets/_vinext_fonts/* (basePath bug)
+  // vinext font loader emits unprefixed /assets/_vinext_fonts/* (basePath gap)
   if (pathname.startsWith("/assets/")) return true;
   return false;
+}
+
+function rewriteHtmlBody(body: string): string {
+  // vinext font loader emits unprefixed /assets/_vinext_fonts/* — reprefix so
+  // the browser fetches them through this Worker Route.
+  return body.split("/assets/_vinext_fonts/").join(PREFIX + "/assets/_vinext_fonts/");
+}
+
+function shouldRewrite(contentType: string | null): boolean {
+  return !!contentType && contentType.includes("text/html");
 }
 
 const worker = {
@@ -66,7 +75,22 @@ const worker = {
     }
 
     // Pages, /api/*, /_vinext/* -> vinext handler (understands basePath)
-    return appHandler.fetch(request, env, ctx);
+    const response = await appHandler.fetch(request, env, ctx);
+
+    // Rewrite unprefixed font paths inside HTML so the browser fetches them
+    // through this Worker Route.
+    const contentType = response.headers.get("content-type");
+    if (!shouldRewrite(contentType)) return response;
+
+    const original = await response.text();
+    const rewritten = rewriteHtmlBody(original);
+    const headers = new Headers(response.headers);
+    headers.delete("content-length");
+    return new Response(rewritten, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   },
 };
 
