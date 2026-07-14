@@ -4,8 +4,14 @@
  * The app is built with next.config basePath = "/advisor/1kh/otby/77".
  * Most asset URLs are emitted with the prefix (/advisor/1kh/otby/77/assets/*),
  * but vinext's font loader emits unprefixed /assets/_vinext_fonts/* paths.
- * This Worker maps both forms to the ASSETS binding and forwards the rest
- * (pages, /api/*, /_vinext/*) to the vinext handler, which understands basePath.
+ *
+ * Cloudflare Workers Assets maps the route prefix (/advisor/1kh/otby/77/assets/*)
+ * to dist/client/assets/* on the origin, so any asset request must arrive with
+ * the prefix. This Worker therefore:
+ *   1. gates requests to PREFIX (404 outside, protecting the photo-web apex)
+ *   2. rewrites unprefixed /assets/* (font loader gap) to PREFIX/assets/*
+ *   3. maps PREFIX/assets/* -> ASSETS binding (/assets/* on the origin)
+ *   4. forwards pages, /api/*, /_vinext/* to the vinext handler (basePath-aware)
  */
 
 import appHandler from "../../dist/server/index.js";
@@ -27,7 +33,7 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-// Paths that live in the ASSETS binding (prefixed or unprefixed font paths).
+// Paths that live in the ASSETS binding.
 function isAssetPath(pathname: string): boolean {
   if (pathname.startsWith(PREFIX + "/assets/") || pathname === PREFIX + "/assets") return true;
   // vinext font loader emits unprefixed /assets/_vinext_fonts/* (basePath bug)
@@ -46,12 +52,16 @@ const worker = {
       return new Response("Not Found", { status: 404 });
     }
 
-    // Static assets -> ASSETS binding (strip PREFIX if present)
     if (isAssetPath(url.pathname)) {
       const assetUrl = new URL(url.toString());
-      assetUrl.pathname = url.pathname.startsWith(PREFIX)
-        ? url.pathname.slice(PREFIX.length)
-        : url.pathname; // -> /assets/...
+      // Normalize to the origin-side path the ASSETS binding expects:
+      //   PREFIX/assets/* -> /assets/*   (route prefix stripped)
+      //   /assets/*       -> PREFIX/assets/* (font loader gap, re-prefixed)
+      if (assetUrl.pathname.startsWith(PREFIX + "/assets/")) {
+        assetUrl.pathname = assetUrl.pathname.slice(PREFIX.length);
+      } else if (assetUrl.pathname.startsWith("/assets/")) {
+        assetUrl.pathname = PREFIX + assetUrl.pathname;
+      }
       return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
     }
 
